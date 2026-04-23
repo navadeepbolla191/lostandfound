@@ -54,15 +54,19 @@ You can also register additional non-admin users from the app.
 
 ## OTP Delivery Setup
 
-The app now uses a Vercel serverless function at `/api/send-otp` for OTP dispatch.
+The app now uses a Vercel serverless function at `/api/send-otp` for OTP dispatch through Gmail SMTP.
 
 To enable live email sending on Vercel, configure these environment variables:
 
-- `RESEND_API_KEY`
-- `OTP_FROM_EMAIL`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `OTP_FROM_EMAIL` (optional, defaults to `SMTP_USER`)
 
-Example sender value:
+Recommended Gmail setup:
 
-- `FindIt <no-reply@your-domain.com>`
+- enable Google 2-Step Verification
+- generate a Google App Password
+- use the Gmail address as `SMTP_USER`
+- use the App Password as `SMTP_PASS`
 
 Without those variables, password-reset requests will fail with a mail-configuration error instead of exposing OTPs in the UI.

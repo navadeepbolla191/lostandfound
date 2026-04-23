@@ -1,0 +1,8 @@
+{
+  "name": "findit-smart-lost-and-found",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  }
+}
