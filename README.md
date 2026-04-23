@@ -46,12 +46,23 @@ You can also register additional non-admin users from the app.
 - public category and location search without authentication
 - normalized relational-style client data for accounts, profiles, reports, media, fingerprints, matches, notes, and audit history
 - protected lost/found reporting
-- forgot-password flow with OTP generation, expiry, and reset verification
+- forgot-password flow with OTP generation, expiry, reset verification, and server-backed email dispatch
 - visual fingerprint generation and high-confidence match suggestion
 - admin side-by-side match verification
 - verified and returned lifecycle handling
 - localStorage persistence using the updated state model
 
-## OTP Note
+## OTP Delivery Setup
 
-This deployment is still a static frontend, so OTP email delivery is simulated locally in the UI mail preview instead of being sent through a real SMTP/backend service.
+The app now uses a Vercel serverless function at `/api/send-otp` for OTP dispatch.
+
+To enable live email sending on Vercel, configure these environment variables:
+
+- `RESEND_API_KEY`
+- `OTP_FROM_EMAIL`
+
+Example sender value:
+
+- `FindIt <no-reply@your-domain.com>`
+
+Without those variables, password-reset requests will fail with a mail-configuration error instead of exposing OTPs in the UI.

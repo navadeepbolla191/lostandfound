@@ -579,15 +579,16 @@ function renderForgotPasswordForm() {
       latestMail
         ? `
           <div class="mail-preview">
-            <span class="eyebrow">OTP delivery check</span>
-            <h3>Institutional mail preview</h3>
+            <span class="eyebrow">Delivery log</span>
+            <h3>Latest OTP dispatch</h3>
             <p class="muted-copy">
-              This deployed app is static, so real SMTP delivery is simulated locally for testing.
-              The OTP below represents the message sent to ${escapeHtml(latestMail.email)}.
+              The app attempted a live email delivery to ${escapeHtml(latestMail.email)}.
+              OTP values are no longer exposed in the UI.
             </p>
             <div class="mail-preview-body">
-              <strong>Subject:</strong> FindIt password reset OTP<br />
-              <strong>OTP:</strong> ${escapeHtml(latestMail.otp)}<br />
+              <strong>Channel:</strong> ${escapeHtml(latestMail.channel)}<br />
+              <strong>Status:</strong> ${escapeHtml(latestMail.status)}<br />
+              <strong>Requested:</strong> ${escapeHtml(formatDateTime(latestMail.createdAt))}<br />
               <strong>Expires:</strong> ${escapeHtml(formatDateTime(latestMail.expiresAt))}
             </div>
           </div>
@@ -1273,15 +1274,37 @@ async function handleForgotPassword(event) {
       createdAt: new Date().toISOString(),
     });
 
-    state.mailQueue.unshift({
-      id: crypto.randomUUID(),
-      accountId: account.id,
-      email,
-      otp,
-      expiresAt,
-      createdAt: new Date().toISOString(),
-      purpose: "PASSWORD_RESET",
-    });
+    try {
+      const delivery = await sendOtpEmail({
+        email,
+        institutionalId,
+        otp,
+        expiresAt,
+      });
+
+      state.mailQueue.unshift({
+        id: crypto.randomUUID(),
+        accountId: account.id,
+        email,
+        expiresAt,
+        createdAt: new Date().toISOString(),
+        purpose: "PASSWORD_RESET",
+        channel: "vercel-email",
+        status: delivery.status || "sent",
+        providerMessageId: delivery.id || "",
+      });
+    } catch (error) {
+      state.passwordResetRequests = state.passwordResetRequests.filter(
+        (request) => request.accountId !== account.id,
+      );
+      saveState();
+      setMessage(
+        message,
+        error instanceof Error ? error.message : "OTP delivery failed. Please try again.",
+        "error",
+      );
+      return;
+    }
 
     uiState.passwordReset = {
       step: "verify",
@@ -1293,7 +1316,7 @@ async function handleForgotPassword(event) {
     const refreshedMessage = document.querySelector("#forgot-message");
     setMessage(
       refreshedMessage,
-      "OTP dispatched to the stored institutional email record. Use it below to reset the password.",
+      "OTP sent to the stored institutional email record. Check your inbox and enter the code below.",
       "success",
     );
     return;
@@ -1690,6 +1713,34 @@ function getLatestResetMail() {
 
 function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function sendOtpEmail({ email, institutionalId, otp, expiresAt }) {
+  const response = await fetch("/api/send-otp", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      institutionalId,
+      otp,
+      expiresAt,
+    }),
+  });
+
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to send OTP email right now.");
+  }
+
+  return payload;
 }
 
 function formatDateTime(value) {
