@@ -1,6 +1,11 @@
 # FindIt
 
-Smart institutional lost-and-found web application built as a static frontend.
+FindIt is a smart institutional lost-and-found web application for CVR that combines:
+
+- public item search without login
+- restricted reporting through institutional ID authentication
+- salted one-way password hashing
+- admin-controlled visual verification before release
 
 ## Open
 
@@ -14,16 +19,32 @@ python3 -m http.server 4173
 
 Then visit `http://localhost:4173`.
 
-## Demo Accounts
+## Updated Security Model
 
-- `demo@cvr.ac.in / password`
-- `admin@cvr.ac.in / password`
+- Public visitors can browse active `Lost` and `Found` items by category and location.
+- Restricted actions require login with an institutional ID matching `XXB81AXXXX`.
+- Passwords are stored as salted PBKDF2-SHA256 hashes, not plain text.
+- Returned items are removed from the public gallery and preserved in audit history.
+
+## Seeded Access
+
+Admin accounts:
+
+- `navadeep` / `26B81A0001`
+- `cvr_college` / `26B81A0002`
+
+Seeded standard user:
+
+- `ishita` / `26B81A1024`
+
+You can also register additional non-admin users from the app.
 
 ## Included Flows
 
-- Institutional email login and registration
-- Standard user reporting wizard with image upload
-- Automatic lost/found matching with confidence scoring
-- Admin pending-match review queue
-- Verified and returned lifecycle tracking
-- LocalStorage persistence for demo data and submitted reports
+- public category and location search without authentication
+- normalized relational-style client data for accounts, profiles, reports, media, fingerprints, matches, notes, and audit history
+- protected lost/found reporting
+- visual fingerprint generation and high-confidence match suggestion
+- admin side-by-side match verification
+- verified and returned lifecycle handling
+- localStorage persistence using the updated state model

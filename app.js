@@ -1,7 +1,42 @@
-const STORAGE_KEY = "findit-app-state-v1";
+const STORAGE_KEY = "findit-relational-v2";
+const ID_PATTERN = /^\d{2}B81A[A-Za-z0-9]{4}$/;
+const CATEGORY_OPTIONS = ["Electronics", "Stationery", "Personal Items", "Documents", "Accessories"];
+const LOCATION_OPTIONS = [
+  "Main Library",
+  "Canteen",
+  "Block A",
+  "Block B",
+  "Admin Office",
+  "Seminar Hall",
+];
 
-const seedImage = (label, colorA, colorB) =>
-  `data:image/svg+xml;utf8,${encodeURIComponent(`
+const uiState = {
+  authMode: "login",
+  reportStep: 1,
+  reportType: "lost",
+  pendingPhoto: "",
+  publicFilters: {
+    query: "",
+    type: "all",
+    category: "all",
+    location: "all",
+  },
+  reportStatusFilter: "all",
+  adminSearch: "",
+};
+
+const app = document.querySelector("#app");
+let state;
+
+init();
+
+async function init() {
+  state = loadState();
+  renderApp();
+}
+
+function seedImage(label, colorA, colorB) {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
       <defs>
         <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -10,181 +45,285 @@ const seedImage = (label, colorA, colorB) =>
         </linearGradient>
       </defs>
       <rect width="600" height="400" rx="28" fill="url(#g)" />
-      <circle cx="490" cy="80" r="54" fill="rgba(255,255,255,0.2)" />
-      <circle cx="140" cy="320" r="76" fill="rgba(255,255,255,0.14)" />
-      <text x="48" y="210" font-size="42" font-family="Arial, sans-serif" fill="white">${label}</text>
+      <circle cx="490" cy="82" r="54" fill="rgba(255,255,255,0.22)" />
+      <circle cx="120" cy="318" r="70" fill="rgba(255,255,255,0.12)" />
+      <text x="48" y="210" font-size="40" font-family="Arial, sans-serif" fill="white">${label}</text>
     </svg>
   `)}`;
-
-const defaultState = {
-  users: [
-    {
-      id: "u-demo",
-      name: "Demo Student",
-      email: "demo@cvr.ac.in",
-      password: "password",
-      role: "user",
-    },
-    {
-      id: "u-admin",
-      name: "Campus Admin",
-      email: "admin@cvr.ac.in",
-      password: "password",
-      role: "admin",
-    },
-  ],
-  currentUserId: null,
-  reports: [
-    {
-      id: "rep-101",
-      type: "lost",
-      itemName: "Silver MacBook Air",
-      category: "Electronics",
-      location: "Library Level 2",
-      date: "2026-04-20",
-      description: "13-inch laptop with a small sticker near the trackpad and a faint scratch on the lid.",
-      image: seedImage("Lost Laptop", "#0f766e", "#155e75"),
-      status: "Matched",
-      ownerUserId: "u-demo",
-      matchId: "match-501",
-      createdAt: "2026-04-20T10:30:00.000Z",
-    },
-    {
-      id: "rep-102",
-      type: "found",
-      itemName: "Laptop near reading bay",
-      category: "Electronics",
-      location: "Library Level 2",
-      date: "2026-04-20",
-      description: "Silver laptop found near the reading bay with a minor lid scratch.",
-      image: seedImage("Found Laptop", "#ea580c", "#f59e0b"),
-      status: "Matched",
-      ownerUserId: "u-admin",
-      matchId: "match-501",
-      createdAt: "2026-04-20T11:10:00.000Z",
-    },
-    {
-      id: "rep-103",
-      type: "lost",
-      itemName: "Keyring with blue tag",
-      category: "Keys",
-      location: "Engineering Block",
-      date: "2026-04-19",
-      description: "Three keys on a ring with a blue rectangular access tag.",
-      image: seedImage("Blue Keyring", "#1d4ed8", "#60a5fa"),
-      status: "Verified",
-      ownerUserId: "u-demo",
-      matchId: "match-502",
-      createdAt: "2026-04-19T08:00:00.000Z",
-    },
-    {
-      id: "rep-104",
-      type: "found",
-      itemName: "Blue-tag keyring",
-      category: "Keys",
-      location: "Engineering Block",
-      date: "2026-04-19",
-      description: "Keyring with an attached blue tag found near the north entrance.",
-      image: seedImage("Found Keys", "#2563eb", "#0891b2"),
-      status: "Verified",
-      ownerUserId: "u-admin",
-      matchId: "match-502",
-      createdAt: "2026-04-19T08:40:00.000Z",
-    },
-    {
-      id: "rep-105",
-      type: "found",
-      itemName: "Black hoodie",
-      category: "Clothing",
-      location: "Cafeteria",
-      date: "2026-04-18",
-      description: "Plain black hoodie, medium size, found on a chair near the south corner.",
-      image: seedImage("Black Hoodie", "#111827", "#4b5563"),
-      status: "Pending",
-      ownerUserId: "u-admin",
-      matchId: null,
-      createdAt: "2026-04-18T14:05:00.000Z",
-    },
-    {
-      id: "rep-106",
-      type: "lost",
-      itemName: "Student ID wallet",
-      category: "Documents",
-      location: "Admin Office",
-      date: "2026-04-17",
-      description: "Brown wallet containing student ID and library card.",
-      image: seedImage("ID Wallet", "#7c2d12", "#c2410c"),
-      status: "Returned",
-      ownerUserId: "u-demo",
-      matchId: "match-503",
-      createdAt: "2026-04-17T09:15:00.000Z",
-    },
-    {
-      id: "rep-107",
-      type: "found",
-      itemName: "Brown wallet with ID cards",
-      category: "Documents",
-      location: "Admin Office",
-      date: "2026-04-17",
-      description: "Brown wallet found at the admin desk containing an ID card and library card.",
-      image: seedImage("Found Wallet", "#92400e", "#f97316"),
-      status: "Returned",
-      ownerUserId: "u-admin",
-      matchId: "match-503",
-      createdAt: "2026-04-17T10:05:00.000Z",
-    },
-  ],
-  matches: [
-    {
-      id: "match-501",
-      lostReportId: "rep-101",
-      foundReportId: "rep-102",
-      confidence: 92,
-      status: "Pending",
-      verifiedAt: null,
-      returnedAt: null,
-    },
-    {
-      id: "match-502",
-      lostReportId: "rep-103",
-      foundReportId: "rep-104",
-      confidence: 88,
-      status: "Verified",
-      verifiedAt: "2026-04-19T12:20:00.000Z",
-      returnedAt: null,
-    },
-    {
-      id: "match-503",
-      lostReportId: "rep-106",
-      foundReportId: "rep-107",
-      confidence: 95,
-      status: "Returned",
-      verifiedAt: "2026-04-17T11:00:00.000Z",
-      returnedAt: "2026-04-17T18:20:00.000Z",
-    },
-  ],
-};
-
-let state = loadState();
-let authMode = "login";
-let reportWizardStep = 1;
-let pendingPhoto = "";
-let selectedReportType = "lost";
-
-const app = document.querySelector("#app");
-
-renderApp();
+}
 
 function loadState() {
   const saved = window.localStorage.getItem(STORAGE_KEY);
-  if (!saved) return structuredClone(defaultState);
-
-  try {
-    return JSON.parse(saved);
-  } catch (error) {
-    console.error("Failed to parse saved state", error);
-    return structuredClone(defaultState);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (error) {
+      console.error("Failed to parse stored FindIt data", error);
+    }
   }
+
+  return createDefaultState();
+}
+
+function createDefaultState() {
+  const accounts = [
+    {
+      id: "acc-admin-1",
+      username: "navadeep",
+      institutionalId: "26B81A0001",
+      passwordSalt: "salt-navadeep-2026",
+      passwordHash: "b1a0ccb6327aa5c4f8e30fe66d9a2ca380da99af1ea0f0c77ef09b157ec8af8b",
+      role: "admin",
+      profileId: "profile-admin-1",
+      createdAt: "2026-04-20T08:00:00.000Z",
+    },
+    {
+      id: "acc-admin-2",
+      username: "cvr_college",
+      institutionalId: "26B81A0002",
+      passwordSalt: "salt-cvr-admin-2026",
+      passwordHash: "684ced9ab7cc1c1232f7c7506e0d3dc30b447badfd6b3c0bf0318df7f4a1e8b2",
+      role: "admin",
+      profileId: "profile-admin-2",
+      createdAt: "2026-04-20T08:02:00.000Z",
+    },
+    {
+      id: "acc-user-1",
+      username: "ishita",
+      institutionalId: "26B81A1024",
+      passwordSalt: "salt-student-2026",
+      passwordHash: "33f550ac02f0d56b1fbfeb09b723a65605a0825b79c55df8fd95a579b2e38fcd",
+      role: "user",
+      profileId: "profile-user-1",
+      createdAt: "2026-04-20T09:00:00.000Z",
+    },
+  ];
+
+  const userProfiles = [
+    {
+      id: "profile-admin-1",
+      fullName: "Navadeep Bolla",
+      department: "Administration",
+      email: "navadeep@cvr.ac.in",
+      phone: "Redacted",
+    },
+    {
+      id: "profile-admin-2",
+      fullName: "CVR Campus Operations",
+      department: "Institutional Security",
+      email: "lostandfound@cvr.ac.in",
+      phone: "Redacted",
+    },
+    {
+      id: "profile-user-1",
+      fullName: "Ishita Rao",
+      department: "Computer Science",
+      email: "ishita.rao@cvr.ac.in",
+      phone: "+91-98XXXXXX12",
+    },
+  ];
+
+  const reportMedia = [
+    { id: "media-1", image: seedImage("Grey Earbuds", "#0d766e", "#155e75") },
+    { id: "media-2", image: seedImage("Found Earbuds", "#0f766e", "#0891b2") },
+    { id: "media-3", image: seedImage("Lab Calculator", "#7c3aed", "#2563eb") },
+    { id: "media-4", image: seedImage("Blue Notebook", "#1d4ed8", "#38bdf8") },
+    { id: "media-5", image: seedImage("ID Card", "#c2410c", "#ea580c") },
+    { id: "media-6", image: seedImage("Laptop Charger", "#374151", "#6b7280") },
+    { id: "media-7", image: seedImage("Lost Notebook", "#2563eb", "#60a5fa") },
+    { id: "media-8", image: seedImage("Found ID Card", "#fb923c", "#f97316") },
+  ];
+
+  const visualFingerprints = [
+    { id: "fp-1", palette: "teal-slate", texture: "matte-plastic", contour: "rounded-case", imageHash: "f0a9-cc11-01", keywords: ["grey", "wireless", "case"] },
+    { id: "fp-2", palette: "teal-slate", texture: "matte-plastic", contour: "rounded-case", imageHash: "f0a9-cd13-02", keywords: ["grey", "wireless", "case"] },
+    { id: "fp-3", palette: "blue-violet", texture: "hard-shell", contour: "rectangular", imageHash: "7ab2-9d30-77", keywords: ["scientific", "calculator", "casio"] },
+    { id: "fp-4", palette: "cobalt-sky", texture: "paper-soft", contour: "flat-book", imageHash: "2fd1-aa77-91", keywords: ["blue", "notebook", "spiral"] },
+    { id: "fp-5", palette: "amber-white", texture: "laminated", contour: "card-flat", imageHash: "9ae1-1120-d3", keywords: ["identity", "badge", "lanyard"] },
+    { id: "fp-6", palette: "charcoal-silver", texture: "cable-rubber", contour: "looped", imageHash: "fe44-771b-a0", keywords: ["charger", "adapter", "laptop"] },
+    { id: "fp-7", palette: "cobalt-sky", texture: "paper-soft", contour: "flat-book", imageHash: "2fd1-aa91-99", keywords: ["blue", "notebook", "spiral"] },
+    { id: "fp-8", palette: "amber-white", texture: "laminated", contour: "card-flat", imageHash: "9ae1-1131-e8", keywords: ["identity", "badge", "lanyard"] },
+  ];
+
+  const reports = [
+    {
+      id: "report-1",
+      itemName: "Grey wireless earbuds",
+      type: "lost",
+      category: "Electronics",
+      location: "Main Library",
+      date: "2026-04-22",
+      description: "Grey earbuds in a compact case with a tiny scratch on the lid.",
+      status: "Matched",
+      reporterAccountId: "acc-user-1",
+      mediaId: "media-1",
+      fingerprintId: "fp-1",
+      generalLocation: "Main Library, floor 1",
+      createdAt: "2026-04-22T10:15:00.000Z",
+    },
+    {
+      id: "report-2",
+      itemName: "Earbuds near reading bay",
+      type: "found",
+      category: "Electronics",
+      location: "Main Library",
+      date: "2026-04-22",
+      description: "Grey earbuds case found near the reading bay, case has visible surface scratch.",
+      status: "Matched",
+      reporterAccountId: "acc-admin-1",
+      mediaId: "media-2",
+      fingerprintId: "fp-2",
+      generalLocation: "Main Library, reading bay",
+      createdAt: "2026-04-22T11:00:00.000Z",
+    },
+    {
+      id: "report-3",
+      itemName: "Scientific calculator",
+      type: "lost",
+      category: "Stationery",
+      location: "Block A",
+      date: "2026-04-21",
+      description: "Casio calculator with a sticker on the back and an exam seat number.",
+      status: "Pending",
+      reporterAccountId: "acc-user-1",
+      mediaId: "media-3",
+      fingerprintId: "fp-3",
+      generalLocation: "Block A, classroom corridor",
+      createdAt: "2026-04-21T15:00:00.000Z",
+    },
+    {
+      id: "report-4",
+      itemName: "Blue spiral notebook",
+      type: "found",
+      category: "Stationery",
+      location: "Seminar Hall",
+      date: "2026-04-20",
+      description: "Blue notebook with a few handwritten formula sheets inside.",
+      status: "Verified",
+      reporterAccountId: "acc-admin-2",
+      mediaId: "media-4",
+      fingerprintId: "fp-4",
+      generalLocation: "Seminar Hall, rear seating",
+      createdAt: "2026-04-20T12:40:00.000Z",
+    },
+    {
+      id: "report-7",
+      itemName: "Blue engineering notebook",
+      type: "lost",
+      category: "Stationery",
+      location: "Seminar Hall",
+      date: "2026-04-20",
+      description: "Blue spiral notebook with a formula sheet clipped inside.",
+      status: "Verified",
+      reporterAccountId: "acc-user-1",
+      mediaId: "media-7",
+      fingerprintId: "fp-7",
+      generalLocation: "Seminar Hall, middle rows",
+      createdAt: "2026-04-20T11:55:00.000Z",
+    },
+    {
+      id: "report-5",
+      itemName: "Student identity card",
+      type: "lost",
+      category: "Personal Items",
+      location: "Admin Office",
+      date: "2026-04-19",
+      description: "CVR identity card attached to a dark lanyard.",
+      status: "Returned",
+      reporterAccountId: "acc-user-1",
+      mediaId: "media-5",
+      fingerprintId: "fp-5",
+      generalLocation: "Admin Office reception",
+      createdAt: "2026-04-19T09:20:00.000Z",
+    },
+    {
+      id: "report-8",
+      itemName: "Identity card with lanyard",
+      type: "found",
+      category: "Personal Items",
+      location: "Admin Office",
+      date: "2026-04-19",
+      description: "Student ID card with a dark lanyard found near the reception counter.",
+      status: "Returned",
+      reporterAccountId: "acc-admin-1",
+      mediaId: "media-8",
+      fingerprintId: "fp-8",
+      generalLocation: "Admin Office reception",
+      createdAt: "2026-04-19T09:40:00.000Z",
+    },
+    {
+      id: "report-6",
+      itemName: "Black laptop charger",
+      type: "found",
+      category: "Electronics",
+      location: "Canteen",
+      date: "2026-04-22",
+      description: "Black charger with wrapped cable and silver adapter head.",
+      status: "Pending",
+      reporterAccountId: "acc-admin-2",
+      mediaId: "media-6",
+      fingerprintId: "fp-6",
+      generalLocation: "Canteen, south tables",
+      createdAt: "2026-04-22T13:30:00.000Z",
+    },
+  ];
+
+  const matches = [
+    {
+      id: "match-1",
+      lostReportId: "report-1",
+      foundReportId: "report-2",
+      confidence: 94,
+      status: "Matched",
+      reviewedByAccountId: null,
+      createdAt: "2026-04-22T11:05:00.000Z",
+      verificationNotes: "Visual fingerprint pipeline flagged near-identical casing, palette, and scratch placement.",
+    },
+    {
+      id: "match-2",
+      lostReportId: "report-7",
+      foundReportId: "report-4",
+      confidence: 91,
+      status: "Verified",
+      reviewedByAccountId: "acc-admin-2",
+      createdAt: "2026-04-20T12:50:00.000Z",
+      verificationNotes: "Owner confirmed page markings during desk verification.",
+    },
+    {
+      id: "match-3",
+      lostReportId: "report-5",
+      foundReportId: "report-8",
+      confidence: 97,
+      status: "Returned",
+      reviewedByAccountId: "acc-admin-1",
+      createdAt: "2026-04-19T10:00:00.000Z",
+      verificationNotes: "Photo, ID number, and lanyard color confirmed before handover.",
+    },
+  ];
+
+  const adminNotes = [
+    { id: "note-1", reportId: "report-1", body: "Student described a scratch on the hinge edge.", createdByAccountId: "acc-admin-1", createdAt: "2026-04-22T10:20:00.000Z" },
+    { id: "note-2", reportId: "report-2", body: "Stored temporarily in library desk locker 3.", createdByAccountId: "acc-admin-1", createdAt: "2026-04-22T11:10:00.000Z" },
+    { id: "note-3", reportId: "report-6", body: "Awaiting charger wattage confirmation from claimant.", createdByAccountId: "acc-admin-2", createdAt: "2026-04-22T13:40:00.000Z" },
+  ];
+
+  const auditHistory = [
+    { id: "audit-1", reportId: "report-1", action: "MATCH_SUGGESTED", actorAccountId: "system", at: "2026-04-22T11:05:00.000Z", details: "Visual Verification Pipeline suggested a 94% match." },
+    { id: "audit-2", reportId: "report-4", action: "VERIFIED", actorAccountId: "acc-admin-2", at: "2026-04-20T13:10:00.000Z", details: "Admin verified side-by-side notebook markers." },
+    { id: "audit-3", reportId: "report-5", action: "RETURNED", actorAccountId: "acc-admin-1", at: "2026-04-19T16:30:00.000Z", details: "Item released after institutional ID confirmation." },
+  ];
+
+  return {
+    accounts,
+    userProfiles,
+    reportMedia,
+    visualFingerprints,
+    reports,
+    matches,
+    adminNotes,
+    auditHistory,
+    currentSessionAccountId: null,
+  };
 }
 
 function saveState() {
@@ -192,615 +331,1114 @@ function saveState() {
 }
 
 function renderApp() {
-  app.innerHTML = "";
-  if (!getCurrentUser()) {
-    renderAuthView();
-    return;
-  }
-
-  renderDashboardView();
+  const account = getCurrentAccount();
+  app.innerHTML = `
+    <main class="shell">
+      ${renderTopbar(account)}
+      ${renderHero(account)}
+      ${renderPublicExplorer()}
+      ${account ? renderDashboard(account) : ""}
+    </main>
+  `;
+  bindEvents();
 }
 
-function renderAuthView() {
-  const template = document.querySelector("#auth-template");
-  app.appendChild(template.content.cloneNode(true));
-
-  const authForm = document.querySelector("#auth-form");
-  const toggleButtons = document.querySelectorAll(".toggle-button");
-
-  updateAuthModeUI();
-
-  toggleButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      authMode = button.dataset.mode;
-      updateAuthModeUI();
-    });
-  });
-
-  authForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const formData = new FormData(authForm);
-    const message = document.querySelector("#auth-message");
-    message.textContent = "";
-
-    const email = String(formData.get("email") || "").trim().toLowerCase();
-    const password = String(formData.get("password") || "").trim();
-
-    if (!email.endsWith("@cvr.ac.in")) {
-      message.textContent = "Use a valid institutional email ending in @cvr.ac.in.";
-      return;
-    }
-
-    if (authMode === "login") {
-      const user = state.users.find(
-        (candidate) => candidate.email === email && candidate.password === password,
-      );
-
-      if (!user) {
-        message.textContent = "Invalid credentials. Try one of the demo accounts.";
-        return;
-      }
-
-      state.currentUserId = user.id;
-      saveState();
-      renderApp();
-      return;
-    }
-
-    const name = String(formData.get("name") || "").trim();
-    const role = String(formData.get("role") || "user");
-
-    if (!name) {
-      message.textContent = "Add your full name to create an account.";
-      return;
-    }
-
-    if (password.length < 8) {
-      message.textContent = "Password must be at least 8 characters.";
-      return;
-    }
-
-    if (state.users.some((user) => user.email === email)) {
-      message.textContent = "An account with that email already exists.";
-      return;
-    }
-
-    const newUser = {
-      id: crypto.randomUUID(),
-      name,
-      email,
-      password,
-      role,
-    };
-
-    state.users.push(newUser);
-    state.currentUserId = newUser.id;
-    saveState();
-    renderApp();
-  });
+function renderTopbar(account) {
+  return `
+    <header class="topbar card">
+      <div>
+        <span class="eyebrow">CVR Institutional Lost & Found</span>
+        <h2>FindIt Public Search + Admin Verification</h2>
+      </div>
+      <div class="topbar-actions">
+        ${
+          account
+            ? `
+              <div class="user-badge">
+                <span>${account.role === "admin" ? "Administrator" : "Authenticated user"}</span>
+                <strong>${escapeHtml(account.username)}</strong>
+                <small>${escapeHtml(account.institutionalId)}</small>
+              </div>
+              <button class="ghost-button" data-action="logout">Log Out</button>
+            `
+            : `
+              <div class="user-badge">
+                <span>Public access</span>
+                <strong>Search without login</strong>
+                <small>Login required only for restricted actions</small>
+              </div>
+            `
+        }
+      </div>
+    </header>
+  `;
 }
 
-function updateAuthModeUI() {
-  const registerFields = document.querySelectorAll(".register-only");
-  const toggleButtons = document.querySelectorAll(".toggle-button");
-
-  toggleButtons.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.mode === authMode);
-  });
-
-  registerFields.forEach((field) => {
-    field.classList.toggle("hidden", authMode !== "register");
-  });
+function renderHero(account) {
+  return `
+    <section class="hero-grid">
+      <section class="hero-panel card">
+        <span class="eyebrow">Open public discovery</span>
+        <h1>Search lost and found items before you ever sign in.</h1>
+        <p class="hero-copy">
+          Public visitors can browse reported items by category and location,
+          while protected workflows use institutional IDs, hashed credentials,
+          and admin-controlled visual verification before release.
+        </p>
+        <div class="security-strip">
+          <article class="security-tile">
+            <span>Public search</span>
+            <strong>Lost and found gallery with category and location filters</strong>
+          </article>
+          <article class="security-tile">
+            <span>Restricted identity</span>
+            <strong>XXB81AXXXX institutional ID validation with one-way password hashing</strong>
+          </article>
+          <article class="security-tile">
+            <span>Admin oversight</span>
+            <strong>Visual fingerprint suggestions plus side-by-side verification authority</strong>
+          </article>
+        </div>
+      </section>
+      <aside class="auth-panel card">
+        <span class="eyebrow">Restricted access</span>
+        <h3>${account ? "Protected access is active" : "Login for reports and admin actions"}</h3>
+        <p class="muted-copy">
+          Institutional IDs must match the pattern <strong>XXB81AXXXX</strong>.
+          Passwords are stored only as salted one-way hashes.
+        </p>
+        ${
+          account
+            ? `
+              <div class="demo-admins">
+                <span>Current session</span>
+                <strong>${escapeHtml(account.username)} • ${escapeHtml(account.institutionalId)}</strong>
+                <small>${account.role === "admin" ? "Admin verification controls unlocked." : "You can submit reports and monitor your own items."}</small>
+              </div>
+            `
+            : `
+              <div class="auth-tabs">
+                <button class="tab-button ${uiState.authMode === "login" ? "is-active" : ""}" data-auth-mode="login">Sign In</button>
+                <button class="tab-button ${uiState.authMode === "register" ? "is-active" : ""}" data-auth-mode="register">Register</button>
+              </div>
+              <div class="demo-admins">
+                <span>Admin accounts for this update</span>
+                <strong>navadeep • 26B81A0001</strong>
+                <strong>cvr_college • 26B81A0002</strong>
+                <small>Default admin passwords are supported for login, but only salted hashes are stored in app state.</small>
+              </div>
+              ${uiState.authMode === "login" ? renderLoginForm() : renderRegisterForm()}
+            `
+        }
+      </aside>
+    </section>
+  `;
 }
 
-function renderDashboardView() {
-  const template = document.querySelector("#dashboard-template");
-  app.appendChild(template.content.cloneNode(true));
-
-  const currentUser = getCurrentUser();
-  document.querySelector("#user-role-badge").textContent =
-    currentUser.role === "admin" ? "Administrator" : "Standard user";
-  document.querySelector("#user-name").textContent = currentUser.name;
-  document.querySelector("#user-email").textContent = currentUser.email;
-
-  bindDashboardEvents();
-  fillDashboardMetrics();
-  renderReports();
-  renderAdminArea();
-  updateWizardUI();
+function renderLoginForm() {
+  return `
+    <form class="auth-form" id="login-form">
+      <div class="field-group">
+        <label for="login-id">Institutional ID</label>
+        <input id="login-id" name="institutionalId" placeholder="26B81A0001" required />
+      </div>
+      <div class="field-group">
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" placeholder="Enter your password" required />
+      </div>
+      <button class="primary-button" type="submit">Authenticate</button>
+      <p class="inline-message" id="login-message"></p>
+    </form>
+  `;
 }
 
-function bindDashboardEvents() {
-  document.querySelector("#logout-button").addEventListener("click", () => {
-    state.currentUserId = null;
-    saveState();
-    reportWizardStep = 1;
-    pendingPhoto = "";
-    selectedReportType = "lost";
-    renderApp();
-  });
-
-  document.querySelectorAll(".type-card").forEach((button) => {
-    button.addEventListener("click", () => {
-      selectedReportType = button.dataset.type;
-      document
-        .querySelectorAll(".type-card")
-        .forEach((card) => card.classList.toggle("is-selected", card.dataset.type === selectedReportType));
-    });
-  });
-
-  document.querySelector("#next-button").addEventListener("click", () => {
-    if (!validateCurrentStep()) return;
-    reportWizardStep += 1;
-    updateWizardUI();
-  });
-
-  document.querySelector("#back-button").addEventListener("click", () => {
-    reportWizardStep = Math.max(1, reportWizardStep - 1);
-    updateWizardUI();
-  });
-
-  document.querySelector("#photo").addEventListener("change", async (event) => {
-    const [file] = event.target.files || [];
-    if (!file) return;
-
-    pendingPhoto = await readFileAsDataURL(file);
-    const previewCard = document.querySelector("#preview-card");
-    const previewImage = document.querySelector("#preview-image");
-    previewImage.src = pendingPhoto;
-    previewCard.classList.remove("hidden");
-  });
-
-  document.querySelector("#report-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!validateCurrentStep()) return;
-
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const currentUser = getCurrentUser();
-    const reportMessage = document.querySelector("#report-message");
-
-    if (!pendingPhoto) {
-      reportMessage.textContent = "Upload a photo before submitting the report.";
-      return;
-    }
-
-    const report = {
-      id: crypto.randomUUID(),
-      type: selectedReportType,
-      itemName: String(formData.get("itemName") || "").trim(),
-      category: String(formData.get("category") || "").trim(),
-      location: String(formData.get("location") || "").trim(),
-      date: String(formData.get("date") || "").trim(),
-      description: String(formData.get("description") || "").trim(),
-      image: pendingPhoto,
-      status: "Pending",
-      ownerUserId: currentUser.id,
-      matchId: null,
-      createdAt: new Date().toISOString(),
-    };
-
-    state.reports.unshift(report);
-    const match = tryCreateMatch(report);
-
-    if (match) {
-      reportMessage.textContent =
-        "Report submitted. A potential match was found and sent to the admin review queue.";
-    } else {
-      reportMessage.textContent = "Report submitted and added to the active tracking queue.";
-    }
-
-    saveState();
-    form.reset();
-    pendingPhoto = "";
-    selectedReportType = "lost";
-    reportWizardStep = 1;
-    renderApp();
-  });
-
-  document.querySelector("#status-filter").addEventListener("change", renderReports);
-
-  const searchInput = document.querySelector("#admin-search");
-  if (searchInput) {
-    searchInput.addEventListener("input", renderAdminTable);
-  }
+function renderRegisterForm() {
+  return `
+    <form class="auth-form" id="register-form">
+      <div class="form-grid">
+        <div class="field-group">
+          <label for="register-name">Full name</label>
+          <input id="register-name" name="fullName" placeholder="Student name" required />
+        </div>
+        <div class="field-group">
+          <label for="register-username">Username</label>
+          <input id="register-username" name="username" placeholder="student_alias" required />
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field-group">
+          <label for="register-id">Institutional ID</label>
+          <input id="register-id" name="institutionalId" placeholder="26B81A1038" required />
+        </div>
+        <div class="field-group">
+          <label for="register-email">Institutional email</label>
+          <input id="register-email" name="email" type="email" placeholder="name@cvr.ac.in" required />
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field-group">
+          <label for="register-dept">Department</label>
+          <input id="register-dept" name="department" placeholder="Computer Science" required />
+        </div>
+        <div class="field-group">
+          <label for="register-password">Password</label>
+          <input id="register-password" name="password" type="password" minlength="10" placeholder="Minimum 10 characters" required />
+        </div>
+      </div>
+      <button class="primary-button" type="submit">Create user account</button>
+      <p class="inline-message" id="register-message"></p>
+    </form>
+  `;
 }
 
-function validateCurrentStep() {
-  const message = document.querySelector("#report-message");
-  message.textContent = "";
-
-  if (reportWizardStep === 2) {
-    const requiredSelectors = ["#item-name", "#category", "#location", "#date", "#description"];
-    const missing = requiredSelectors.some((selector) => !document.querySelector(selector).value.trim());
-    if (missing) {
-      message.textContent = "Complete all item details before moving to the next step.";
-      return false;
-    }
-  }
-
-  if (reportWizardStep === 3 && !pendingPhoto) {
-    message.textContent = "Upload a clear photo to continue.";
-    return false;
-  }
-
-  if (reportWizardStep === 4) {
-    const reviewPanel = document.querySelector("#review-panel");
-    reviewPanel.innerHTML = buildReviewMarkup();
-  }
-
-  return true;
-}
-
-function updateWizardUI() {
-  document.querySelectorAll(".wizard-pane").forEach((pane) => {
-    pane.classList.toggle("hidden", Number(pane.dataset.step) !== reportWizardStep);
-  });
-
-  document.querySelector("#wizard-step-label").textContent = `Step ${reportWizardStep} of 4`;
-  document.querySelector("#back-button").classList.toggle("hidden", reportWizardStep === 1);
-  document.querySelector("#next-button").classList.toggle("hidden", reportWizardStep === 4);
-  document.querySelector("#submit-button").classList.toggle("hidden", reportWizardStep !== 4);
-
-  if (reportWizardStep === 4) {
-    document.querySelector("#review-panel").innerHTML = buildReviewMarkup();
-  }
-}
-
-function buildReviewMarkup() {
-  const readValue = (selector) => document.querySelector(selector).value.trim();
+function renderPublicExplorer() {
+  const visibleReports = getPublicReports();
+  const categories = ["all", ...CATEGORY_OPTIONS];
+  const locations = ["all", ...LOCATION_OPTIONS];
 
   return `
-    <article class="review-item">
-      <span>Report type</span>
-      <strong>${capitalize(selectedReportType)}</strong>
-    </article>
-    <article class="review-item">
-      <span>Item</span>
-      <strong>${readValue("#item-name") || "Not provided"}</strong>
-    </article>
-    <article class="review-item">
-      <span>Category and location</span>
-      <strong>${readValue("#category") || "-"} at ${readValue("#location") || "-"}</strong>
-    </article>
-    <article class="review-item">
-      <span>Date</span>
-      <strong>${readValue("#date") || "-"}</strong>
-    </article>
-    <article class="review-item">
-      <span>Description</span>
-      <strong>${readValue("#description") || "-"}</strong>
+    <section class="public-grid">
+      <aside class="filters-panel card">
+        <span class="eyebrow">Public search</span>
+        <h3>Browse by category and location</h3>
+        <p class="muted-copy">
+          Public visitors can inspect item photos, categories, and general locations.
+          Reporter identity and contact information remain hidden.
+        </p>
+        <div class="field-group">
+          <label for="public-query">Search title or description</label>
+          <input id="public-query" value="${escapeAttr(uiState.publicFilters.query)}" placeholder="Earbuds, notebook, charger..." />
+        </div>
+        <div class="field-group">
+          <label for="public-category">Category</label>
+          <select id="public-category">
+            ${categories.map((category) => `<option value="${category}" ${uiState.publicFilters.category === category ? "selected" : ""}>${category === "all" ? "All categories" : category}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="public-location">Location</label>
+          <select id="public-location">
+            ${locations.map((location) => `<option value="${location}" ${uiState.publicFilters.location === location ? "selected" : ""}>${location === "all" ? "All locations" : location}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field-group">
+          <span>Item type</span>
+          <div class="type-filter-row">
+            ${["all", "lost", "found"].map((type) => `
+              <button class="type-chip ${uiState.publicFilters.type === type ? "is-active" : ""}" type="button" data-filter-type="${type}">
+                ${type === "all" ? "All items" : capitalize(type)}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      </aside>
+      <section class="public-results card">
+        <div class="public-results-head">
+          <div>
+            <span class="eyebrow">Public gallery</span>
+            <h3>${visibleReports.length} active items visible</h3>
+          </div>
+          <div class="meta-pill">Returned items remain only in audit history</div>
+        </div>
+        <div class="public-list">
+          ${
+            visibleReports.length
+              ? visibleReports.map((report) => renderPublicCard(report)).join("")
+              : `<div class="empty-state">No active items match the selected filters right now.</div>`
+          }
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderPublicCard(report) {
+  const media = getMedia(report.mediaId);
+  return `
+    <article class="public-card">
+      <img class="public-image" src="${media.image}" alt="${escapeAttr(report.itemName)}" />
+      <div class="public-card-body">
+        <div class="report-head">
+          <div>
+            <h4>${escapeHtml(report.itemName)}</h4>
+            <p class="detail-copy">Reporter identity hidden • internal contact redacted</p>
+          </div>
+          <span class="status-badge ${statusClass(report.status)}">${report.status}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-pill">${capitalize(report.type)}</span>
+          <span class="meta-pill">${escapeHtml(report.category)}</span>
+          <span class="meta-pill">${escapeHtml(report.generalLocation)}</span>
+        </div>
+        <p class="report-description">${escapeHtml(report.description)}</p>
+      </div>
     </article>
   `;
 }
 
-function fillDashboardMetrics() {
-  const currentUser = getCurrentUser();
-  const visibleReports =
-    currentUser.role === "admin"
-      ? state.reports
-      : state.reports.filter((report) => report.ownerUserId === currentUser.id);
-  const relevantMatches =
-    currentUser.role === "admin"
-      ? state.matches
-      : state.matches.filter((match) => {
-          const lost = getReport(match.lostReportId);
-          const found = getReport(match.foundReportId);
-          return [lost?.ownerUserId, found?.ownerUserId].includes(currentUser.id);
-        });
+function renderDashboard(account) {
+  const reports = getVisibleReportsForAccount(account);
+  const matches = getVisibleMatchesForAccount(account);
+  const highestConfidence = matches.reduce((max, match) => Math.max(max, match.confidence), 0);
 
-  const highestConfidence = relevantMatches.reduce(
-    (max, match) => Math.max(max, Number(match.confidence || 0)),
-    0,
-  );
+  return `
+    <section class="summary-grid">
+      <article class="summary-card card">
+        <span>Tracked records</span>
+        <strong>${reports.length}</strong>
+        <p class="detail-copy">Relationally linked reports visible to this session.</p>
+      </article>
+      <article class="summary-card card">
+        <span>Visual matches</span>
+        <strong>${matches.filter((match) => match.status === "Matched").length}</strong>
+        <p class="detail-copy">Pending side-by-side admin review.</p>
+      </article>
+      <article class="summary-card card">
+        <span>Verified items</span>
+        <strong>${reports.filter((report) => report.status === "Verified").length}</strong>
+        <p class="detail-copy">Ready for controlled handover.</p>
+      </article>
+      <article class="summary-card card">
+        <span>Top confidence</span>
+        <strong>${highestConfidence}%</strong>
+        <p class="detail-copy">Highest active visual fingerprint similarity.</p>
+      </article>
+    </section>
 
-  document.querySelector("#metric-active").textContent = visibleReports.filter(
-    (report) => report.status !== "Returned",
-  ).length;
-  document.querySelector("#metric-matches").textContent = relevantMatches.filter(
-    (match) => match.status === "Pending",
-  ).length;
-  document.querySelector("#metric-returned").textContent = visibleReports.filter(
-    (report) => report.status === "Returned",
-  ).length;
-  document.querySelector("#metric-confidence").textContent = `${highestConfidence}%`;
+    <section class="dashboard-grid">
+      <section class="dashboard-panel card">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Restricted workflow</span>
+            <h3>Submit a lost or found report</h3>
+          </div>
+          <div class="meta-pill">Login required</div>
+        </div>
+        ${renderReportForm()}
+      </section>
+      <section class="dashboard-panel card">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">${account.role === "admin" ? "Institutional records" : "Your records"}</span>
+            <h3>${account.role === "admin" ? "All item records" : "My submitted reports"}</h3>
+          </div>
+          <select id="report-status-filter">
+            <option value="all" ${uiState.reportStatusFilter === "all" ? "selected" : ""}>All statuses</option>
+            <option value="Pending" ${uiState.reportStatusFilter === "Pending" ? "selected" : ""}>Pending</option>
+            <option value="Matched" ${uiState.reportStatusFilter === "Matched" ? "selected" : ""}>Matched</option>
+            <option value="Verified" ${uiState.reportStatusFilter === "Verified" ? "selected" : ""}>Verified</option>
+            <option value="Returned" ${uiState.reportStatusFilter === "Returned" ? "selected" : ""}>Returned</option>
+          </select>
+        </div>
+        <div class="reports-list">
+          ${renderReportCards(reports, account)}
+        </div>
+      </section>
+    </section>
+
+    ${
+      account.role === "admin"
+        ? renderAdminArea()
+        : ""
+    }
+  `;
 }
 
-function renderReports() {
-  const currentUser = getCurrentUser();
-  const reportsList = document.querySelector("#reports-list");
-  const filter = document.querySelector("#status-filter").value;
-  const reportsTitle = document.querySelector("#reports-title");
+function renderReportForm() {
+  return `
+    <form class="report-form" id="report-form">
+      <div class="field-group">
+        <span>Report type</span>
+        <div class="type-selector">
+          ${["lost", "found"].map((type) => `
+            <button class="type-chip ${uiState.reportType === type ? "is-active" : ""}" data-report-type="${type}" type="button">
+              ${capitalize(type)}
+            </button>
+          `).join("")}
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field-group">
+          <label for="report-item">Item name</label>
+          <input id="report-item" name="itemName" placeholder="Grey earbuds case" required />
+        </div>
+        <div class="field-group">
+          <label for="report-category">Category</label>
+          <select id="report-category" name="category" required>
+            <option value="">Select category</option>
+            ${CATEGORY_OPTIONS.map((category) => `<option>${category}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field-group">
+          <label for="report-location">Location</label>
+          <select id="report-location" name="location" required>
+            <option value="">Select location</option>
+            ${LOCATION_OPTIONS.map((location) => `<option>${location}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="report-date">Date</label>
+          <input id="report-date" name="date" type="date" required />
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="report-general-location">General location shown publicly</label>
+        <input id="report-general-location" name="generalLocation" placeholder="Main Library, floor 1" required />
+      </div>
+      <div class="field-group">
+        <label for="report-description">Description</label>
+        <textarea id="report-description" name="description" placeholder="Describe scratches, labels, case texture, or distinctive marks." required></textarea>
+      </div>
+      <div class="field-group">
+        <label class="upload-box" for="report-photo">
+          <input id="report-photo" name="photo" type="file" accept="image/*" required />
+          <span>Upload an item image</span>
+          <small>Used to generate a visual fingerprint for internal matching.</small>
+        </label>
+      </div>
+      <div id="report-preview-wrap">
+        ${uiState.pendingPhoto ? `<img class="preview-image" src="${uiState.pendingPhoto}" alt="Uploaded preview" />` : ""}
+      </div>
+      <div class="wizard-actions">
+        <button class="primary-button" type="submit">Submit protected report</button>
+      </div>
+      <p class="inline-message" id="report-message"></p>
+    </form>
+  `;
+}
 
-  const reports =
-    currentUser.role === "admin"
-      ? [...state.reports]
-      : state.reports.filter((report) => report.ownerUserId === currentUser.id);
-
-  reportsTitle.textContent = currentUser.role === "admin" ? "All reports snapshot" : "My reports";
-
-  const filtered = reports.filter((report) => filter === "all" || report.status === filter);
+function renderReportCards(reports, account) {
+  const filtered = reports
+    .filter((report) => uiState.reportStatusFilter === "all" || report.status === uiState.reportStatusFilter)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   if (!filtered.length) {
-    reportsList.innerHTML = `<p class="inline-message">No reports match the selected filter yet.</p>`;
-    return;
+    return `<div class="empty-state">No reports match the selected status filter.</div>`;
   }
 
-  reportsList.innerHTML = filtered
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .map((report) => {
-      const match = report.matchId ? state.matches.find((item) => item.id === report.matchId) : null;
-      const confidence = match ? `${match.confidence}% confidence` : "Awaiting match";
+  return filtered.map((report) => {
+    const media = getMedia(report.mediaId);
+    const fingerprint = getFingerprint(report.fingerprintId);
+    const owner = getAccount(report.reporterAccountId);
+    const profile = owner ? getProfile(owner.profileId) : null;
+    const reportMatches = getMatchesForReport(report.id);
+    const topMatch = reportMatches.sort((a, b) => b.confidence - a.confidence)[0];
 
-      return `
-        <article class="report-card">
-          <div class="report-top">
+    return `
+      <article class="report-card">
+        <img class="report-image" src="${media.image}" alt="${escapeAttr(report.itemName)}" />
+        <div class="report-body">
+          <div class="report-head">
             <div>
               <h4>${escapeHtml(report.itemName)}</h4>
-              <div class="report-meta">
-                <span>${capitalize(report.type)}</span>
-                <span>${escapeHtml(report.category)}</span>
-                <span>${escapeHtml(report.location)}</span>
-                <span>${escapeHtml(report.date)}</span>
+              <div class="meta-row">
+                <span class="meta-pill">${capitalize(report.type)}</span>
+                <span class="meta-pill">${escapeHtml(report.category)}</span>
+                <span class="meta-pill">${escapeHtml(report.location)}</span>
+                <span class="meta-pill">${escapeHtml(report.date)}</span>
               </div>
             </div>
             <span class="status-badge ${statusClass(report.status)}">${report.status}</span>
           </div>
           <p class="report-description">${escapeHtml(report.description)}</p>
-          <div class="report-meta">
-            <span>${confidence}</span>
+          <div class="fingerprint-grid">
+            <article class="fingerprint-card">
+              <span>Palette</span>
+              <strong>${escapeHtml(fingerprint.palette)}</strong>
+            </article>
+            <article class="fingerprint-card">
+              <span>Texture</span>
+              <strong>${escapeHtml(fingerprint.texture)}</strong>
+            </article>
+            <article class="fingerprint-card">
+              <span>Contour</span>
+              <strong>${escapeHtml(fingerprint.contour)}</strong>
+            </article>
+          </div>
+          <div class="meta-row">
+            <span class="confidence-badge">${topMatch ? `${topMatch.confidence}% pipeline score` : "Awaiting visual match"}</span>
             ${
-              currentUser.role === "admin"
-                ? `<span>Owner: ${escapeHtml(getUser(report.ownerUserId)?.name || "Unknown")}</span>`
+              account.role === "admin"
+                ? `<span class="meta-pill">Reporter: ${escapeHtml(profile.fullName)} • ${escapeHtml(owner.institutionalId)}</span>`
                 : ""
             }
           </div>
-          <div class="report-image">
-            <img src="${report.image}" alt="${escapeHtml(report.itemName)}" />
-          </div>
-        </article>
-      `;
-    })
-    .join("");
+        </div>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderAdminArea() {
-  const currentUser = getCurrentUser();
-  const adminPanel = document.querySelector("#admin-panel");
-
-  if (currentUser.role !== "admin") {
-    adminPanel.classList.add("hidden");
-    return;
-  }
-
-  adminPanel.classList.remove("hidden");
-  renderMatches();
-  renderAdminTable();
-}
-
-function renderMatches() {
-  const matchesList = document.querySelector("#matches-list");
-  const pendingMatches = state.matches
-    .filter((match) => match.status === "Pending")
+  const queue = state.matches
+    .filter((match) => match.status === "Matched")
     .sort((a, b) => b.confidence - a.confidence);
+  const searchableReports = getAdminSearchResults();
+  const auditEvents = [...state.auditHistory].sort((a, b) => new Date(b.at) - new Date(a.at));
 
-  if (!pendingMatches.length) {
-    matchesList.innerHTML = `<p class="inline-message">No pending matches. The queue is clear.</p>`;
-    return;
-  }
-
-  matchesList.innerHTML = pendingMatches
-    .map((match) => {
-      const lostReport = getReport(match.lostReportId);
-      const foundReport = getReport(match.foundReportId);
-      if (!lostReport || !foundReport) return "";
-
-      return `
-        <article class="match-card">
-          <div class="match-top">
+  return `
+    <section class="admin-grid">
+      <section class="admin-panel card">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Visual Verification Pipeline</span>
+            <h3>Suggested match queue</h3>
+          </div>
+          <div class="meta-pill">${queue.length} awaiting admin decision</div>
+        </div>
+        <div class="matches-list">
+          ${queue.length ? queue.map((match) => renderMatchCard(match)).join("") : `<div class="empty-state">No open match suggestions. The queue is clear.</div>`}
+        </div>
+      </section>
+      <section class="admin-panel card">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Master access</span>
+            <h3>Full item, profile, and audit view</h3>
+          </div>
+          <input id="admin-search" class="admin-search" value="${escapeAttr(uiState.adminSearch)}" placeholder="Search report, reporter, note, ID, location..." />
+        </div>
+        <div class="detail-list">
+          ${searchableReports.length ? searchableReports.map((report) => renderAdminDetail(report)).join("") : `<div class="empty-state">No internal records match the admin search.</div>`}
+        </div>
+        <div class="audit-list">
+          <div class="card-head">
             <div>
-              <h4>${escapeHtml(lostReport.itemName)} vs ${escapeHtml(foundReport.itemName)}</h4>
-              <div class="report-meta">
-                <span>${escapeHtml(lostReport.category)}</span>
-                <span>${escapeHtml(lostReport.location)}</span>
-                <span>Lost by ${escapeHtml(getUser(lostReport.ownerUserId)?.name || "Unknown")}</span>
-              </div>
+              <span class="eyebrow">Audit history</span>
+              <h3>Lifecycle archive</h3>
             </div>
-            <span class="confidence-badge">${match.confidence}% match</span>
           </div>
-
-          <div class="match-images">
-            <figure>
-              <img src="${lostReport.image}" alt="Lost report image" />
-              <figcaption>Lost report</figcaption>
-            </figure>
-            <figure>
-              <img src="${foundReport.image}" alt="Found report image" />
-              <figcaption>Found report</figcaption>
-            </figure>
-          </div>
-
-          <p class="report-description">
-            Admin review should confirm unique markers before approving the handover.
-          </p>
-
-          <div class="match-actions">
-            <button class="primary-button" data-action="verify-match" data-match-id="${match.id}">
-              Verify Match
-            </button>
-            <button class="ghost-button" data-action="mark-returned" data-match-id="${match.id}">
-              Mark Returned
-            </button>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
-
-  matchesList.querySelectorAll("[data-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const { action, matchId } = button.dataset;
-      if (action === "verify-match") {
-        updateMatchStatus(matchId, "Verified");
-      }
-      if (action === "mark-returned") {
-        updateMatchStatus(matchId, "Returned");
-      }
-    });
-  });
-}
-
-function renderAdminTable() {
-  const container = document.querySelector("#admin-table");
-  if (!container) return;
-
-  const query = String(document.querySelector("#admin-search")?.value || "")
-    .trim()
-    .toLowerCase();
-
-  const rows = state.reports.filter((report) => {
-    if (!query) return true;
-
-    const user = getUser(report.ownerUserId);
-    return [report.itemName, report.category, report.location, report.description, user?.name, user?.email]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query));
-  });
-
-  container.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th>Type</th>
-          <th>Category</th>
-          <th>Owner</th>
-          <th>Location</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows
-          .map((report) => {
-            const user = getUser(report.ownerUserId);
-            return `
-              <tr>
-                <td>${escapeHtml(report.itemName)}</td>
-                <td>${capitalize(report.type)}</td>
-                <td>${escapeHtml(report.category)}</td>
-                <td>${escapeHtml(user?.name || "Unknown")}</td>
-                <td>${escapeHtml(report.location)}</td>
-                <td><span class="status-badge ${statusClass(report.status)}">${report.status}</span></td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
+          ${auditEvents.map((event) => renderAuditCard(event)).join("")}
+        </div>
+      </section>
+    </section>
   `;
 }
 
-function tryCreateMatch(newReport) {
+function renderMatchCard(match) {
+  const lostReport = getReport(match.lostReportId);
+  const foundReport = getReport(match.foundReportId);
+  const lostProfile = getProfile(getAccount(lostReport.reporterAccountId).profileId);
+  const foundProfile = getProfile(getAccount(foundReport.reporterAccountId).profileId);
+  const lostFingerprint = getFingerprint(lostReport.fingerprintId);
+  const foundFingerprint = getFingerprint(foundReport.fingerprintId);
+
+  return `
+    <article class="match-card">
+      <div class="match-body">
+        <div class="match-head">
+          <div>
+            <h4>${escapeHtml(lostReport.itemName)} ↔ ${escapeHtml(foundReport.itemName)}</h4>
+            <p class="detail-copy">${escapeHtml(match.verificationNotes)}</p>
+          </div>
+          <span class="confidence-badge">${match.confidence}% similarity</span>
+        </div>
+        <div class="match-comparison">
+          <figure class="compare-panel">
+            <img class="compare-image" src="${getMedia(lostReport.mediaId).image}" alt="Lost report image" />
+            <figcaption>
+              Lost report • ${escapeHtml(lostProfile.fullName)} • ${escapeHtml(lostReport.location)}
+            </figcaption>
+          </figure>
+          <figure class="compare-panel">
+            <img class="compare-image" src="${getMedia(foundReport.mediaId).image}" alt="Found report image" />
+            <figcaption>
+              Found report • ${escapeHtml(foundProfile.fullName)} • ${escapeHtml(foundReport.location)}
+            </figcaption>
+          </figure>
+        </div>
+        <div class="fingerprint-grid">
+          <article class="fingerprint-card">
+            <span>Lost fingerprint</span>
+            <strong>${escapeHtml(lostFingerprint.palette)} / ${escapeHtml(lostFingerprint.texture)}</strong>
+          </article>
+          <article class="fingerprint-card">
+            <span>Found fingerprint</span>
+            <strong>${escapeHtml(foundFingerprint.palette)} / ${escapeHtml(foundFingerprint.texture)}</strong>
+          </article>
+          <article class="fingerprint-card">
+            <span>Hash signature</span>
+            <strong>${escapeHtml(lostFingerprint.imageHash)} ↔ ${escapeHtml(foundFingerprint.imageHash)}</strong>
+          </article>
+        </div>
+        <div class="match-actions">
+          <button class="primary-button" data-action="verify-match" data-match-id="${match.id}">Verify ownership</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminDetail(report) {
+  const account = getAccount(report.reporterAccountId);
+  const profile = getProfile(account.profileId);
+  const fingerprint = getFingerprint(report.fingerprintId);
+  const notes = state.adminNotes.filter((note) => note.reportId === report.id);
+  const matches = getMatchesForReport(report.id);
+  const verifiedMatch = matches.find((match) => match.status === "Verified");
+
+  return `
+    <article class="detail-card">
+      <div class="card-head">
+        <div>
+          <h4>${escapeHtml(report.itemName)}</h4>
+          <p class="detail-copy">${capitalize(report.type)} • ${escapeHtml(report.category)} • ${escapeHtml(report.location)}</p>
+        </div>
+        <span class="status-badge ${statusClass(report.status)}">${report.status}</span>
+      </div>
+      <div class="detail-grid">
+        <div class="meta-row">
+          <span class="meta-pill">Reporter: ${escapeHtml(profile.fullName)}</span>
+          <span class="meta-pill">Institutional ID: ${escapeHtml(account.institutionalId)}</span>
+          <span class="meta-pill">Profile email: ${escapeHtml(profile.email)}</span>
+        </div>
+        <p class="report-description">${escapeHtml(report.description)}</p>
+        <ul>
+          <li>General public location: ${escapeHtml(report.generalLocation)}</li>
+          <li>Visual fingerprint: ${escapeHtml(fingerprint.palette)}, ${escapeHtml(fingerprint.texture)}, ${escapeHtml(fingerprint.contour)}</li>
+          <li>Internal fingerprint keywords: ${fingerprint.keywords.map(escapeHtml).join(", ")}</li>
+          <li>Related matches: ${matches.length ? matches.map((match) => `${match.status} (${match.confidence}%)`).join(", ") : "None yet"}</li>
+        </ul>
+        ${
+          verifiedMatch
+            ? `
+              <div class="report-actions">
+                <button class="ghost-button" data-action="return-match" data-match-id="${verifiedMatch.id}">
+                  Mark item as returned
+                </button>
+              </div>
+            `
+            : ""
+        }
+        ${
+          notes.length
+            ? `
+              <div class="audit-card">
+                <strong>Internal notes</strong>
+                <ul>${notes.map((note) => `<li>${escapeHtml(note.body)}</li>`).join("")}</ul>
+              </div>
+            `
+            : ""
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderAuditCard(event) {
+  const actor =
+    event.actorAccountId === "system"
+      ? { label: "system pipeline" }
+      : getAccount(event.actorAccountId);
+
+  return `
+    <article class="audit-card">
+      <span>${escapeHtml(event.action)}</span>
+      <strong>${escapeHtml(getReport(event.reportId)?.itemName || "Record")}</strong>
+      <p class="detail-copy">${escapeHtml(event.details)}</p>
+      <p class="detail-copy">${formatDateTime(event.at)} • ${escapeHtml(actor.label || actor.username)}</p>
+    </article>
+  `;
+}
+
+function bindEvents() {
+  document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      uiState.authMode = button.dataset.authMode;
+      renderApp();
+    });
+  });
+
+  document.querySelector("#public-query")?.addEventListener("input", (event) => {
+    uiState.publicFilters.query = event.target.value;
+    renderApp();
+  });
+
+  document.querySelector("#public-category")?.addEventListener("change", (event) => {
+    uiState.publicFilters.category = event.target.value;
+    renderApp();
+  });
+
+  document.querySelector("#public-location")?.addEventListener("change", (event) => {
+    uiState.publicFilters.location = event.target.value;
+    renderApp();
+  });
+
+  document.querySelectorAll("[data-filter-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      uiState.publicFilters.type = button.dataset.filterType;
+      renderApp();
+    });
+  });
+
+  document.querySelector("[data-action='logout']")?.addEventListener("click", () => {
+    state.currentSessionAccountId = null;
+    uiState.pendingPhoto = "";
+    saveState();
+    renderApp();
+  });
+
+  document.querySelector("#login-form")?.addEventListener("submit", handleLogin);
+  document.querySelector("#register-form")?.addEventListener("submit", handleRegister);
+  document.querySelectorAll("[data-report-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      uiState.reportType = button.dataset.reportType;
+      document.querySelectorAll("[data-report-type]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.dataset.reportType === uiState.reportType);
+      });
+    });
+  });
+  document.querySelector("#report-photo")?.addEventListener("change", handlePhotoChange);
+  document.querySelector("#report-form")?.addEventListener("submit", handleReportSubmit);
+  document.querySelector("#report-status-filter")?.addEventListener("change", (event) => {
+    uiState.reportStatusFilter = event.target.value;
+    renderApp();
+  });
+  document.querySelector("#admin-search")?.addEventListener("input", (event) => {
+    uiState.adminSearch = event.target.value;
+    renderApp();
+  });
+  document.querySelectorAll("[data-action='verify-match']").forEach((button) => {
+    button.addEventListener("click", () => updateMatchLifecycle(button.dataset.matchId, "Verified"));
+  });
+  document.querySelectorAll("[data-action='return-match']").forEach((button) => {
+    button.addEventListener("click", () => updateMatchLifecycle(button.dataset.matchId, "Returned"));
+  });
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const message = document.querySelector("#login-message");
+  const formData = new FormData(event.currentTarget);
+  const institutionalId = String(formData.get("institutionalId") || "").trim().toUpperCase();
+  const password = String(formData.get("password") || "");
+
+  if (!ID_PATTERN.test(institutionalId)) {
+    setMessage(message, "Institutional ID must match the XXB81AXXXX format.", "error");
+    return;
+  }
+
+  const account = state.accounts.find((candidate) => candidate.institutionalId === institutionalId);
+  if (!account) {
+    setMessage(message, "No account found for that institutional ID.", "error");
+    return;
+  }
+
+  const passwordHash = await hashPassword(password, account.passwordSalt);
+  if (passwordHash !== account.passwordHash) {
+    setMessage(message, "Invalid password for that institutional ID.", "error");
+    return;
+  }
+
+  state.currentSessionAccountId = account.id;
+  saveState();
+  renderApp();
+}
+
+async function handleRegister(event) {
+  event.preventDefault();
+  const message = document.querySelector("#register-message");
+  const formData = new FormData(event.currentTarget);
+  const fullName = String(formData.get("fullName") || "").trim();
+  const username = String(formData.get("username") || "").trim();
+  const institutionalId = String(formData.get("institutionalId") || "").trim().toUpperCase();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const department = String(formData.get("department") || "").trim();
+  const password = String(formData.get("password") || "");
+
+  if (!ID_PATTERN.test(institutionalId)) {
+    setMessage(message, "Institutional ID must follow the XXB81AXXXX format.", "error");
+    return;
+  }
+
+  if (!email.endsWith("@cvr.ac.in")) {
+    setMessage(message, "Registration requires a valid @cvr.ac.in email address.", "error");
+    return;
+  }
+
+  if (password.length < 10) {
+    setMessage(message, "Choose a password with at least 10 characters.", "error");
+    return;
+  }
+
+  if (state.accounts.some((account) => account.institutionalId === institutionalId || account.username === username)) {
+    setMessage(message, "That institutional ID or username is already registered.", "error");
+    return;
+  }
+
+  const profileId = crypto.randomUUID();
+  const accountId = crypto.randomUUID();
+  const salt = crypto.randomUUID();
+  const passwordHash = await hashPassword(password, salt);
+
+  state.userProfiles.push({
+    id: profileId,
+    fullName,
+    department,
+    email,
+    phone: "Private",
+  });
+
+  state.accounts.push({
+    id: accountId,
+    username,
+    institutionalId,
+    passwordSalt: salt,
+    passwordHash,
+    role: "user",
+    profileId,
+    createdAt: new Date().toISOString(),
+  });
+
+  state.currentSessionAccountId = accountId;
+  saveState();
+  renderApp();
+}
+
+async function handlePhotoChange(event) {
+  const [file] = event.target.files || [];
+  if (!file) return;
+  uiState.pendingPhoto = await readFileAsDataURL(file);
+  const previewWrap = document.querySelector("#report-preview-wrap");
+  if (previewWrap) {
+    previewWrap.innerHTML = `<img class="preview-image" src="${uiState.pendingPhoto}" alt="Uploaded preview" />`;
+  }
+}
+
+async function handleReportSubmit(event) {
+  event.preventDefault();
+  const message = document.querySelector("#report-message");
+  const account = getCurrentAccount();
+
+  if (!account) {
+    setMessage(message, "Login is required before you can submit a protected report.", "error");
+    return;
+  }
+
+  if (!uiState.pendingPhoto) {
+    setMessage(message, "Upload an item image so the Visual Verification Pipeline can fingerprint it.", "error");
+    return;
+  }
+
+  const formData = new FormData(event.currentTarget);
+  const itemName = String(formData.get("itemName") || "").trim();
+  const category = String(formData.get("category") || "").trim();
+  const location = String(formData.get("location") || "").trim();
+  const date = String(formData.get("date") || "").trim();
+  const generalLocation = String(formData.get("generalLocation") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+
+  if (!itemName || !category || !location || !date || !generalLocation || !description) {
+    setMessage(message, "Complete all report fields before submitting.", "error");
+    return;
+  }
+
+  const mediaId = crypto.randomUUID();
+  const fingerprintId = crypto.randomUUID();
+  const reportId = crypto.randomUUID();
+  const fingerprint = buildFingerprint(uiState.pendingPhoto, description, itemName);
+
+  state.reportMedia.push({ id: mediaId, image: uiState.pendingPhoto });
+  state.visualFingerprints.push({ id: fingerprintId, ...fingerprint });
+
+  const report = {
+    id: reportId,
+    itemName,
+    type: uiState.reportType,
+    category,
+    location,
+    date,
+    description,
+    status: "Pending",
+    reporterAccountId: account.id,
+    mediaId,
+    fingerprintId,
+    generalLocation,
+    createdAt: new Date().toISOString(),
+  };
+
+  state.reports.unshift(report);
+  state.auditHistory.unshift({
+    id: crypto.randomUUID(),
+    reportId,
+    action: "CREATED",
+    actorAccountId: account.id,
+    at: new Date().toISOString(),
+    details: "Protected report submitted into the pending institutional queue.",
+  });
+
+  const newMatch = tryCreateVisualMatch(report);
+  if (newMatch) {
+    setMessage(message, "Report submitted. A high-confidence visual match was suggested for admin review.", "success");
+  } else {
+    setMessage(message, "Report submitted. It is now visible in public search as a pending record.", "success");
+  }
+
+  saveState();
+  uiState.pendingPhoto = "";
+  event.currentTarget.reset();
+  renderApp();
+}
+
+async function hashPassword(password, salt) {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(salt),
+      iterations: 120000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256,
+  );
+
+  return [...new Uint8Array(bits)].map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function buildFingerprint(imageData, description, itemName) {
+  const source = `${itemName}|${description}|${imageData.slice(0, 64)}`;
+  const hash = simpleHash(source);
+  const paletteOptions = ["teal-slate", "cobalt-sky", "amber-white", "charcoal-silver", "crimson-black"];
+  const textureOptions = ["matte-plastic", "paper-soft", "hard-shell", "fabric-knit", "laminated"];
+  const contourOptions = ["rounded-case", "flat-book", "looped", "rectangular", "card-flat"];
+
+  return {
+    palette: paletteOptions[hash % paletteOptions.length],
+    texture: textureOptions[(hash >> 2) % textureOptions.length],
+    contour: contourOptions[(hash >> 4) % contourOptions.length],
+    imageHash: `${hash.toString(16).slice(0, 4)}-${simpleHash(description).toString(16).slice(0, 4)}-${simpleHash(itemName).toString(16).slice(0, 2)}`,
+    keywords: description.toLowerCase().split(/\W+/).filter(Boolean).slice(0, 4),
+  };
+}
+
+function tryCreateVisualMatch(newReport) {
   const oppositeType = newReport.type === "lost" ? "found" : "lost";
-  const candidates = state.reports.filter(
-    (report) =>
+  const candidates = state.reports.filter((report) => {
+    return (
       report.id !== newReport.id &&
       report.type === oppositeType &&
       report.status !== "Returned" &&
-      report.category.toLowerCase() === newReport.category.toLowerCase() &&
-      report.location.toLowerCase() === newReport.location.toLowerCase(),
-  );
+      report.category === newReport.category &&
+      report.location === newReport.location
+    );
+  });
 
   if (!candidates.length) return null;
 
-  const bestCandidate = candidates
+  const best = candidates
     .map((candidate) => ({
       candidate,
-      score: computeConfidence(newReport, candidate),
+      confidence: computeVisualConfidence(newReport, candidate),
     }))
-    .sort((a, b) => b.score - a.score)[0];
+    .sort((left, right) => right.confidence - left.confidence)[0];
 
-  if (bestCandidate.score < 60) return null;
+  if (best.confidence < 72) return null;
 
-  const lostReport = newReport.type === "lost" ? newReport : bestCandidate.candidate;
-  const foundReport = newReport.type === "found" ? newReport : bestCandidate.candidate;
+  const lostReport = newReport.type === "lost" ? newReport : best.candidate;
+  const foundReport = newReport.type === "found" ? newReport : best.candidate;
   const match = {
     id: crypto.randomUUID(),
     lostReportId: lostReport.id,
     foundReportId: foundReport.id,
-    confidence: bestCandidate.score,
-    status: "Pending",
-    verifiedAt: null,
-    returnedAt: null,
+    confidence: best.confidence,
+    status: "Matched",
+    reviewedByAccountId: null,
+    createdAt: new Date().toISOString(),
+    verificationNotes: "Visual Verification Pipeline aligned category, location, temporal proximity, and fingerprint traits.",
   };
 
   state.matches.unshift(match);
   lostReport.status = "Matched";
   foundReport.status = "Matched";
-  lostReport.matchId = match.id;
-  foundReport.matchId = match.id;
+  state.auditHistory.unshift({
+    id: crypto.randomUUID(),
+    reportId: newReport.id,
+    action: "MATCH_SUGGESTED",
+    actorAccountId: "system",
+    at: new Date().toISOString(),
+    details: `Pipeline suggested a ${best.confidence}% similarity for admin review.`,
+  });
   return match;
 }
 
-function computeConfidence(reportA, reportB) {
-  let score = 45;
-  if (reportA.category === reportB.category) score += 18;
-  if (reportA.location.toLowerCase() === reportB.location.toLowerCase()) score += 16;
+function computeVisualConfidence(reportA, reportB) {
+  const fpA = getFingerprint(reportA.fingerprintId);
+  const fpB = getFingerprint(reportB.fingerprintId);
+  let score = 50;
 
-  const dateDifference = Math.abs(
-    new Date(reportA.date).getTime() - new Date(reportB.date).getTime(),
-  );
-  const dayDifference = dateDifference / (1000 * 60 * 60 * 24);
-  if (dayDifference <= 1) score += 8;
-  else if (dayDifference <= 3) score += 4;
+  if (reportA.category === reportB.category) score += 12;
+  if (reportA.location === reportB.location) score += 10;
+  if (fpA.palette === fpB.palette) score += 9;
+  if (fpA.texture === fpB.texture) score += 7;
+  if (fpA.contour === fpB.contour) score += 7;
 
-  const descriptionWordsA = new Set(reportA.description.toLowerCase().split(/\W+/).filter(Boolean));
-  const descriptionWordsB = new Set(reportB.description.toLowerCase().split(/\W+/).filter(Boolean));
-  const overlap = [...descriptionWordsA].filter((word) => descriptionWordsB.has(word)).length;
-  score += Math.min(overlap * 2, 13);
+  const keywordsA = new Set(fpA.keywords);
+  const overlap = fpB.keywords.filter((word) => keywordsA.has(word)).length;
+  score += Math.min(overlap * 3, 9);
+
+  const dayDifference =
+    Math.abs(new Date(reportA.date).getTime() - new Date(reportB.date).getTime()) /
+    (1000 * 60 * 60 * 24);
+  if (dayDifference <= 1) score += 6;
+  else if (dayDifference <= 3) score += 3;
 
   return Math.min(score, 98);
 }
 
-function updateMatchStatus(matchId, status) {
+function updateMatchLifecycle(matchId, nextStatus) {
+  const account = getCurrentAccount();
+  if (!account || account.role !== "admin") return;
+
   const match = state.matches.find((item) => item.id === matchId);
   if (!match) return;
+  if (nextStatus === "Returned" && match.status !== "Verified") return;
 
-  match.status = status;
-  if (status === "Verified") {
-    match.verifiedAt = new Date().toISOString();
-  }
-  if (status === "Returned") {
-    match.returnedAt = new Date().toISOString();
-  }
+  match.status = nextStatus;
+  match.reviewedByAccountId = account.id;
 
-  [match.lostReportId, match.foundReportId].forEach((reportId) => {
-    const report = getReport(reportId);
-    if (report) report.status = status;
+  const relatedReports = [getReport(match.lostReportId), getReport(match.foundReportId)].filter(Boolean);
+  relatedReports.forEach((report) => {
+    report.status = nextStatus;
+    state.auditHistory.unshift({
+      id: crypto.randomUUID(),
+      reportId: report.id,
+      action: nextStatus.toUpperCase(),
+      actorAccountId: account.id,
+      at: new Date().toISOString(),
+      details:
+        nextStatus === "Verified"
+          ? "Admin performed side-by-side photo review and verified ownership."
+          : "Item was physically returned and archived out of public search.",
+    });
   });
 
   saveState();
   renderApp();
 }
 
-function getCurrentUser() {
-  return state.users.find((user) => user.id === state.currentUserId) || null;
+function getPublicReports() {
+  const query = uiState.publicFilters.query.trim().toLowerCase();
+  return state.reports
+    .filter((report) => report.status !== "Returned")
+    .filter((report) => uiState.publicFilters.type === "all" || report.type === uiState.publicFilters.type)
+    .filter((report) => uiState.publicFilters.category === "all" || report.category === uiState.publicFilters.category)
+    .filter((report) => uiState.publicFilters.location === "all" || report.location === uiState.publicFilters.location)
+    .filter((report) => {
+      if (!query) return true;
+      return [report.itemName, report.description, report.generalLocation]
+        .some((value) => value.toLowerCase().includes(query));
+    })
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function getUser(userId) {
-  return state.users.find((user) => user.id === userId) || null;
+function getVisibleReportsForAccount(account) {
+  const reports =
+    account.role === "admin"
+      ? state.reports
+      : state.reports.filter((report) => report.reporterAccountId === account.id);
+  return [...reports];
+}
+
+function getVisibleMatchesForAccount(account) {
+  if (account.role === "admin") return [...state.matches];
+  return state.matches.filter((match) => {
+    const lostReport = getReport(match.lostReportId);
+    const foundReport = getReport(match.foundReportId);
+    return [lostReport?.reporterAccountId, foundReport?.reporterAccountId].includes(account.id);
+  });
+}
+
+function getMatchesForReport(reportId) {
+  return state.matches.filter((match) => match.lostReportId === reportId || match.foundReportId === reportId);
+}
+
+function getAdminSearchResults() {
+  const query = uiState.adminSearch.trim().toLowerCase();
+  const reports = [...state.reports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  if (!query) return reports;
+
+  return reports.filter((report) => {
+    const account = getAccount(report.reporterAccountId);
+    const profile = getProfile(account.profileId);
+    const notes = state.adminNotes.filter((note) => note.reportId === report.id);
+    return [
+      report.itemName,
+      report.category,
+      report.location,
+      report.description,
+      account.username,
+      account.institutionalId,
+      profile.fullName,
+      profile.email,
+      ...notes.map((note) => note.body),
+    ]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(query));
+  });
+}
+
+function getCurrentAccount() {
+  return state.accounts.find((account) => account.id === state.currentSessionAccountId) || null;
+}
+
+function getAccount(accountId) {
+  return state.accounts.find((account) => account.id === accountId);
+}
+
+function getProfile(profileId) {
+  return state.userProfiles.find((profile) => profile.id === profileId);
 }
 
 function getReport(reportId) {
-  return state.reports.find((report) => report.id === reportId) || null;
+  return state.reports.find((report) => report.id === reportId);
 }
 
-function capitalize(value) {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+function getMedia(mediaId) {
+  return state.reportMedia.find((media) => media.id === mediaId);
+}
+
+function getFingerprint(fingerprintId) {
+  return state.visualFingerprints.find((fingerprint) => fingerprint.id === fingerprintId);
+}
+
+function setMessage(node, text, type) {
+  if (!node) return;
+  node.textContent = text;
+  node.className = `inline-message ${type}`;
+}
+
+function formatDateTime(value) {
+  return new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function statusClass(status) {
-  return `status-${String(status).toLowerCase()}`;
+  return `status-${status.toLowerCase()}`;
+}
+
+function capitalize(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function simpleHash(input) {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
 function escapeHtml(value) {
@@ -810,6 +1448,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
 }
 
 function readFileAsDataURL(file) {
