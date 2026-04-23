@@ -253,6 +253,7 @@ p {
 .primary-button,
 .ghost-button,
 .type-chip,
+.text-button,
 .lifecycle-pill {
   border: 0;
   cursor: pointer;
@@ -357,8 +358,17 @@ textarea {
 .ghost-button:hover,
 .tab-button:hover,
 .type-chip:hover,
+.text-button:hover,
 .lifecycle-pill:hover {
   transform: translateY(-1px);
+}
+
+.text-button {
+  padding: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-weight: 800;
+  text-align: left;
 }
 
 .inline-message {
@@ -590,6 +600,23 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 14px;
+}
+
+.mail-preview {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(74, 54, 31, 0.12);
+  background: rgba(255, 251, 244, 0.86);
+}
+
+.mail-preview-body {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(37, 24, 15, 0.05);
+  color: var(--muted);
+  line-height: 1.7;
 }
 
 .detail-grid {

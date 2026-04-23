@@ -15,6 +15,11 @@ const uiState = {
   reportStep: 1,
   reportType: "lost",
   pendingPhoto: "",
+  passwordReset: {
+    step: "request",
+    institutionalId: "",
+    email: "",
+  },
   publicFilters: {
     query: "",
     type: "all",
@@ -56,13 +61,13 @@ function loadState() {
   const saved = window.localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      return normalizeState(JSON.parse(saved));
     } catch (error) {
       console.error("Failed to parse stored FindIt data", error);
     }
   }
 
-  return createDefaultState();
+  return normalizeState(createDefaultState());
 }
 
 function createDefaultState() {
@@ -104,21 +109,21 @@ function createDefaultState() {
       id: "profile-admin-1",
       fullName: "Navadeep Bolla",
       department: "Administration",
-      email: "navadeep@cvr.ac.in",
+      email: "26b81a0001@cvr.ac.in",
       phone: "Redacted",
     },
     {
       id: "profile-admin-2",
       fullName: "CVR Campus Operations",
       department: "Institutional Security",
-      email: "lostandfound@cvr.ac.in",
+      email: "26b81a0002@cvr.ac.in",
       phone: "Redacted",
     },
     {
       id: "profile-user-1",
       fullName: "Ishita Rao",
       department: "Computer Science",
-      email: "ishita.rao@cvr.ac.in",
+      email: "26b81a1024@cvr.ac.in",
       phone: "+91-98XXXXXX12",
     },
   ];
@@ -322,8 +327,33 @@ function createDefaultState() {
     matches,
     adminNotes,
     auditHistory,
+    passwordResetRequests: [],
+    mailQueue: [],
     currentSessionAccountId: null,
   };
+}
+
+function normalizeState(rawState) {
+  const nextState = {
+    ...rawState,
+    passwordResetRequests: Array.isArray(rawState.passwordResetRequests) ? rawState.passwordResetRequests : [],
+    mailQueue: Array.isArray(rawState.mailQueue) ? rawState.mailQueue : [],
+  };
+
+  const profileEmailByInstitutionalId = {
+    "26B81A0001": "26b81a0001@cvr.ac.in",
+    "26B81A0002": "26b81a0002@cvr.ac.in",
+    "26B81A1024": "26b81a1024@cvr.ac.in",
+  };
+
+  nextState.userProfiles = (nextState.userProfiles || []).map((profile) => {
+    const linkedAccount = (nextState.accounts || []).find((account) => account.profileId === profile.id);
+    if (!linkedAccount) return profile;
+    const enforcedEmail = profileEmailByInstitutionalId[linkedAccount.institutionalId];
+    return enforcedEmail ? { ...profile, email: enforcedEmail } : profile;
+  });
+
+  return nextState;
 }
 
 function saveState() {
@@ -427,7 +457,13 @@ function renderHero(account) {
                 <strong>cvr_college • 26B81A0002</strong>
                 <small>Default admin passwords are supported for login, but only salted hashes are stored in app state.</small>
               </div>
-              ${uiState.authMode === "login" ? renderLoginForm() : renderRegisterForm()}
+              ${
+                uiState.authMode === "login"
+                  ? renderLoginForm()
+                  : uiState.authMode === "register"
+                    ? renderRegisterForm()
+                    : renderForgotPasswordForm()
+              }
             `
         }
       </aside>
@@ -447,6 +483,7 @@ function renderLoginForm() {
         <input id="login-password" name="password" type="password" placeholder="Enter your password" required />
       </div>
       <button class="primary-button" type="submit">Authenticate</button>
+      <button class="text-button" type="button" data-action="show-forgot-password">Forgot password?</button>
       <p class="inline-message" id="login-message"></p>
     </form>
   `;
@@ -472,7 +509,7 @@ function renderRegisterForm() {
         </div>
         <div class="field-group">
           <label for="register-email">Institutional email</label>
-          <input id="register-email" name="email" type="email" placeholder="name@cvr.ac.in" required />
+          <input id="register-email" name="email" type="email" placeholder="26B81A1038@cvr.ac.in" required />
         </div>
       </div>
       <div class="form-grid">
@@ -488,6 +525,75 @@ function renderRegisterForm() {
       <button class="primary-button" type="submit">Create user account</button>
       <p class="inline-message" id="register-message"></p>
     </form>
+  `;
+}
+
+function renderForgotPasswordForm() {
+  const latestMail = getLatestResetMail();
+  const isVerifyStep = uiState.passwordReset.step === "verify";
+
+  return `
+    <form class="auth-form" id="forgot-password-form">
+      <div class="field-group">
+        <label for="forgot-id">Institutional ID</label>
+        <input
+          id="forgot-id"
+          name="institutionalId"
+          value="${escapeAttr(uiState.passwordReset.institutionalId)}"
+          placeholder="26B81A1024"
+          required
+          ${isVerifyStep ? "readonly" : ""}
+        />
+      </div>
+      <div class="field-group">
+        <label for="forgot-email">Institutional email</label>
+        <input
+          id="forgot-email"
+          name="email"
+          type="email"
+          value="${escapeAttr(uiState.passwordReset.email)}"
+          placeholder="26B81A1024@cvr.ac.in"
+          required
+          ${isVerifyStep ? "readonly" : ""}
+        />
+      </div>
+      ${
+        isVerifyStep
+          ? `
+            <div class="field-group">
+              <label for="forgot-otp">OTP</label>
+              <input id="forgot-otp" name="otp" inputmode="numeric" placeholder="6-digit OTP" required />
+            </div>
+            <div class="field-group">
+              <label for="forgot-new-password">New password</label>
+              <input id="forgot-new-password" name="newPassword" type="password" minlength="10" placeholder="Set a new password" required />
+            </div>
+          `
+          : ""
+      }
+      <button class="primary-button" type="submit">${isVerifyStep ? "Verify OTP and reset password" : "Send OTP to institutional email"}</button>
+      <button class="text-button" type="button" data-action="back-to-login">Back to login</button>
+      <p class="inline-message" id="forgot-message"></p>
+    </form>
+    ${
+      latestMail
+        ? `
+          <div class="mail-preview">
+            <span class="eyebrow">OTP delivery check</span>
+            <h3>Institutional mail preview</h3>
+            <p class="muted-copy">
+              This deployed app is static, so real SMTP delivery is simulated locally for testing.
+              The OTP below represents the message sent to ${escapeHtml(latestMail.email)}.
+            </p>
+            <div class="mail-preview-body">
+              <strong>Subject:</strong> FindIt password reset OTP<br />
+              <strong>OTP:</strong> ${escapeHtml(latestMail.otp)}<br />
+              <strong>Expires:</strong> ${escapeHtml(formatDateTime(latestMail.expiresAt))}
+            </div>
+          </div>
+        `
+        : ""
+    }
   `;
 }
 
@@ -932,11 +1038,14 @@ function renderAuditCard(event) {
     event.actorAccountId === "system"
       ? { label: "system pipeline" }
       : getAccount(event.actorAccountId);
+  const subject = event.reportId
+    ? getReport(event.reportId)?.itemName || "Record"
+    : event.subject || "Account activity";
 
   return `
     <article class="audit-card">
       <span>${escapeHtml(event.action)}</span>
-      <strong>${escapeHtml(getReport(event.reportId)?.itemName || "Record")}</strong>
+      <strong>${escapeHtml(subject)}</strong>
       <p class="detail-copy">${escapeHtml(event.details)}</p>
       <p class="detail-copy">${formatDateTime(event.at)} • ${escapeHtml(actor.label || actor.username)}</p>
     </article>
@@ -947,6 +1056,7 @@ function bindEvents() {
   document.querySelectorAll("[data-auth-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       uiState.authMode = button.dataset.authMode;
+      resetPasswordUiState();
       renderApp();
     });
   });
@@ -982,6 +1092,17 @@ function bindEvents() {
 
   document.querySelector("#login-form")?.addEventListener("submit", handleLogin);
   document.querySelector("#register-form")?.addEventListener("submit", handleRegister);
+  document.querySelector("#forgot-password-form")?.addEventListener("submit", handleForgotPassword);
+  document.querySelector("[data-action='show-forgot-password']")?.addEventListener("click", () => {
+    uiState.authMode = "forgot";
+    resetPasswordUiState();
+    renderApp();
+  });
+  document.querySelector("[data-action='back-to-login']")?.addEventListener("click", () => {
+    uiState.authMode = "login";
+    resetPasswordUiState();
+    renderApp();
+  });
   document.querySelectorAll("[data-report-type]").forEach((button) => {
     button.addEventListener("click", () => {
       uiState.reportType = button.dataset.reportType;
@@ -1053,8 +1174,13 @@ async function handleRegister(event) {
     return;
   }
 
-  if (!email.endsWith("@cvr.ac.in")) {
-    setMessage(message, "Registration requires a valid @cvr.ac.in email address.", "error");
+  const expectedEmail = `${institutionalId.toLowerCase()}@cvr.ac.in`;
+  if (email !== expectedEmail) {
+    setMessage(
+      message,
+      `Institutional email must exactly match ${expectedEmail}.`,
+      "error",
+    );
     return;
   }
 
@@ -1095,6 +1221,138 @@ async function handleRegister(event) {
   state.currentSessionAccountId = accountId;
   saveState();
   renderApp();
+}
+
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  const message = document.querySelector("#forgot-message");
+  const formData = new FormData(event.currentTarget);
+  const institutionalId = String(formData.get("institutionalId") || "").trim().toUpperCase();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+
+  if (!ID_PATTERN.test(institutionalId)) {
+    setMessage(message, "Institutional ID must follow the XXB81AXXXX format.", "error");
+    return;
+  }
+
+  const expectedEmail = `${institutionalId.toLowerCase()}@cvr.ac.in`;
+  if (email !== expectedEmail) {
+    setMessage(message, `Institutional email must exactly match ${expectedEmail}.`, "error");
+    return;
+  }
+
+  const account = state.accounts.find((candidate) => candidate.institutionalId === institutionalId);
+  if (!account) {
+    setMessage(message, "No existing user is registered for that institutional ID.", "error");
+    return;
+  }
+
+  const profile = getProfile(account.profileId);
+  if (!profile || profile.email.toLowerCase() !== email) {
+    setMessage(message, "The provided institutional email does not match our stored record.", "error");
+    return;
+  }
+
+  if (uiState.passwordReset.step === "request") {
+    const otp = generateOtp();
+    const otpSalt = crypto.randomUUID();
+    const otpHash = await hashPassword(otp, otpSalt);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    state.passwordResetRequests = state.passwordResetRequests.filter(
+      (request) => request.accountId !== account.id,
+    );
+    state.passwordResetRequests.unshift({
+      id: crypto.randomUUID(),
+      accountId: account.id,
+      email,
+      otpSalt,
+      otpHash,
+      expiresAt,
+      consumed: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    state.mailQueue.unshift({
+      id: crypto.randomUUID(),
+      accountId: account.id,
+      email,
+      otp,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+      purpose: "PASSWORD_RESET",
+    });
+
+    uiState.passwordReset = {
+      step: "verify",
+      institutionalId,
+      email,
+    };
+    saveState();
+    renderApp();
+    const refreshedMessage = document.querySelector("#forgot-message");
+    setMessage(
+      refreshedMessage,
+      "OTP dispatched to the stored institutional email record. Use it below to reset the password.",
+      "success",
+    );
+    return;
+  }
+
+  const otp = String(formData.get("otp") || "").trim();
+  const newPassword = String(formData.get("newPassword") || "");
+
+  if (!/^\d{6}$/.test(otp)) {
+    setMessage(message, "Enter the 6-digit OTP sent to the institutional email.", "error");
+    return;
+  }
+
+  if (newPassword.length < 10) {
+    setMessage(message, "New password must be at least 10 characters.", "error");
+    return;
+  }
+
+  const resetRequest = state.passwordResetRequests.find(
+    (request) => request.accountId === account.id && !request.consumed,
+  );
+
+  if (!resetRequest) {
+    setMessage(message, "No active OTP request was found. Please request a new OTP.", "error");
+    return;
+  }
+
+  if (new Date(resetRequest.expiresAt).getTime() < Date.now()) {
+    setMessage(message, "The OTP has expired. Request a new one.", "error");
+    return;
+  }
+
+  const otpHash = await hashPassword(otp, resetRequest.otpSalt);
+  if (otpHash !== resetRequest.otpHash) {
+    setMessage(message, "Invalid OTP for this reset request.", "error");
+    return;
+  }
+
+  const newSalt = crypto.randomUUID();
+  account.passwordSalt = newSalt;
+  account.passwordHash = await hashPassword(newPassword, newSalt);
+  resetRequest.consumed = true;
+
+  state.auditHistory.unshift({
+    id: crypto.randomUUID(),
+    reportId: null,
+    subject: account.institutionalId,
+    action: "PASSWORD_RESET",
+    actorAccountId: account.id,
+    at: new Date().toISOString(),
+    details: "User completed OTP-based password reset through institutional email verification.",
+  });
+
+  saveState();
+  uiState.authMode = "login";
+  resetPasswordUiState();
+  renderApp();
+  const loginMessage = document.querySelector("#login-message");
+  setMessage(loginMessage, "Password updated. You can now sign in with the new password.", "success");
 }
 
 async function handlePhotoChange(event) {
@@ -1416,6 +1674,22 @@ function setMessage(node, text, type) {
   if (!node) return;
   node.textContent = text;
   node.className = `inline-message ${type}`;
+}
+
+function resetPasswordUiState() {
+  uiState.passwordReset = {
+    step: "request",
+    institutionalId: "",
+    email: "",
+  };
+}
+
+function getLatestResetMail() {
+  return state.mailQueue.find((entry) => entry.purpose === "PASSWORD_RESET") || null;
+}
+
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 function formatDateTime(value) {
