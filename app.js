@@ -326,6 +326,7 @@ function renderTopbar(account) {
                   <code style="font-size: 0.75rem; opacity: 0.8;">${escapeHtml(account.institutionalId)} (${account.role})</code>
                 </div>
               </div>
+              <button class="primary-button" onclick="document.getElementById('report-form').scrollIntoView({behavior:'smooth'})" style="padding: 0.5rem 1rem; font-size: 0.8rem;">+ Report Item</button>
               <button class="ghost-button" data-action="logout">Log Out</button>
             `
             : `
@@ -753,19 +754,19 @@ function renderReportForm() {
         </div>
         <div class="field-group">
           <label for="report-category">Category</label>
-          <select id="report-category" name="category" required>
-            <option value="">Select category</option>
-            ${CATEGORY_OPTIONS.map((category) => `<option>${category}</option>`).join("")}
-          </select>
+          <input id="report-category" name="category" placeholder="Electronics, Stationery, etc." list="category-suggestions" required />
+          <datalist id="category-suggestions">
+            ${CATEGORY_OPTIONS.map((category) => `<option value="${category}"></option>`).join("")}
+          </datalist>
         </div>
       </div>
       <div class="form-grid">
         <div class="field-group">
-          <label for="report-location">Location</label>
-          <select id="report-location" name="location" required>
-            <option value="">Select location</option>
-            ${LOCATION_OPTIONS.map((location) => `<option>${location}</option>`).join("")}
-          </select>
+          <label for="report-location">Specific location</label>
+          <input id="report-location" name="location" placeholder="Library Floor 2, Room 301, etc." list="location-suggestions" required />
+          <datalist id="location-suggestions">
+            ${LOCATION_OPTIONS.map((location) => `<option value="${location}"></option>`).join("")}
+          </datalist>
         </div>
         <div class="field-group">
           <label for="report-date">Date</label>
@@ -790,8 +791,8 @@ function renderReportForm() {
       <div id="report-preview-wrap">
         ${uiState.pendingPhoto ? `<img class="preview-image" src="${uiState.pendingPhoto}" alt="Uploaded preview" />` : ""}
       </div>
-      <div class="wizard-actions">
-        <button class="primary-button" type="submit">Submit protected report</button>
+      <div class="wizard-actions" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--surface-border);">
+        <button class="primary-button" type="submit" style="width: 100%; padding: 1rem;">Submit Protected Report to Database</button>
       </div>
       <p class="inline-message" id="report-message"></p>
     </form>
