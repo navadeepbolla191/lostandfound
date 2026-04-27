@@ -307,7 +307,7 @@ function renderTopbar(account) {
       <div>
         <span class="eyebrow">Institutional Lost & Found</span>
         <div style="display: flex; align-items: center; gap: 12px;">
-          <h2>FindIt</h2>
+          <h2>FindIt (v2.1)</h2>
           <div class="meta-pill" style="font-size: 0.65rem; display: flex; align-items: center; gap: 6px;" title="${uiState.lastServerError || "No server errors"}">
             <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${uiState.isSyncing ? "#f59e0b" : uiState.lastSyncAt ? "#10b981" : "#ef4444"};"></span>
             ${uiState.isSyncing ? "Syncing..." : uiState.lastSyncAt ? `Last Sync: ${syncTime}` : `Offline: ${uiState.lastServerError || "Token Missing"}`}
