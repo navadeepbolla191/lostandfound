@@ -135,15 +135,19 @@ async function syncStateFromServer() {
   renderApp();
   
   try {
-    const remoteState = await loadRemoteState();
-    if (remoteState) {
-      state = remoteState;
+    const serverState = await loadRemoteState();
+    if (serverState) {
+      state = normalizeState(serverState);
+      saveState(state);
+      uiState.lastSyncAt = new Date();
+      uiState.lastServerError = null;
+    } else {
+      // Server is online but empty. This is OK.
       uiState.lastSyncAt = new Date();
       uiState.lastServerError = null;
     }
   } catch (err) {
     uiState.lastServerError = err.message;
-    console.warn("Sync failed, operating in offline mode.", err);
   } finally {
     uiState.isSyncing = false;
     // Only perform full render if the user is not actively typing in a form

@@ -7,10 +7,9 @@ module.exports = async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      const envKeys = Object.keys(process.env).filter(k => !k.includes("TOKEN") && !k.includes("KEY") && !k.includes("PASS")).join(", ");
       const hasToken = process.env.BLOB_READ_WRITE_TOKEN || Object.keys(process.env).some(k => k.endsWith("_READ_WRITE_TOKEN"));
       if (!hasToken) {
-        throw new Error(`Token Missing. Available system keys: ${envKeys}`);
+        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please connect your Vercel Blob store.");
       }
       const state = await readState();
       return res.status(200).json({ state });
