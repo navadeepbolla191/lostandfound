@@ -29,6 +29,8 @@ const uiState = {
   },
   reportStatusFilter: "all",
   adminSearch: "",
+  lastSyncAt: null,
+  isSyncing: false,
 };
 
 const app = document.querySelector("#app");
@@ -39,6 +41,9 @@ init();
 async function init() {
   state = await loadState();
   renderApp();
+  
+  // Periodic sync every 60 seconds to keep devices consistent
+  setInterval(syncStateFromServer, 60000);
 }
 
 function seedImage(label, colorA, colorB) {
@@ -74,7 +79,11 @@ async function loadState(options = {}) {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        return normalizeState(JSON.parse(saved));
+        const localState = normalizeState(JSON.parse(saved));
+        // If we are here and remoteState failed, we use local but notify the UI if possible
+        // For now, just return it but prioritize remote next time
+        console.warn("Using local fallback for FindIt state. Data might be out of sync.");
+        return localState;
       } catch (error) {
         console.error("Failed to parse stored FindIt data", error);
       }
@@ -120,10 +129,28 @@ async function syncStateFromServer() {
 
   if (remoteState) {
     state = remoteState;
+    uiState.lastSyncAt = new Date();
     return remoteState;
   }
 
   return state;
+}
+
+async function syncStateFromServer() {
+  if (uiState.isSyncing) return;
+  uiState.isSyncing = true;
+  renderApp();
+  
+  try {
+    const remoteState = await loadRemoteState();
+    if (remoteState) {
+      state = remoteState;
+      uiState.lastSyncAt = new Date();
+    }
+  } finally {
+    uiState.isSyncing = false;
+    renderApp();
+  }
 }
 
 function createDefaultState() {
@@ -148,16 +175,6 @@ function createDefaultState() {
       profileId: "profile-admin-2",
       createdAt: "2026-04-20T08:02:00.000Z",
     },
-    {
-      id: "acc-user-1",
-      username: "ishita",
-      institutionalId: "26B81A1024",
-      passwordSalt: "salt-student-2026",
-      passwordHash: "33f550ac02f0d56b1fbfeb09b723a65605a0825b79c55df8fd95a579b2e38fcd",
-      role: "user",
-      profileId: "profile-user-1",
-      createdAt: "2026-04-20T09:00:00.000Z",
-    },
   ];
 
   const userProfiles = [
@@ -175,204 +192,15 @@ function createDefaultState() {
       email: "26b81a0002@cvr.ac.in",
       phone: "Redacted",
     },
-    {
-      id: "profile-user-1",
-      fullName: "Ishita Rao",
-      department: "Computer Science",
-      email: "26b81a1024@cvr.ac.in",
-      phone: "+91-98XXXXXX12",
-    },
   ];
 
-  const reportMedia = [
-    { id: "media-1", image: seedImage("Grey Earbuds", "#0d766e", "#155e75") },
-    { id: "media-2", image: seedImage("Found Earbuds", "#0f766e", "#0891b2") },
-    { id: "media-3", image: seedImage("Lab Calculator", "#7c3aed", "#2563eb") },
-    { id: "media-4", image: seedImage("Blue Notebook", "#1d4ed8", "#38bdf8") },
-    { id: "media-5", image: seedImage("ID Card", "#c2410c", "#ea580c") },
-    { id: "media-6", image: seedImage("Laptop Charger", "#374151", "#6b7280") },
-    { id: "media-7", image: seedImage("Lost Notebook", "#2563eb", "#60a5fa") },
-    { id: "media-8", image: seedImage("Found ID Card", "#fb923c", "#f97316") },
-  ];
+  const reportMedia = [];
+  const visualFingerprints = [];
 
-  const visualFingerprints = [
-    { id: "fp-1", palette: "teal-slate", texture: "matte-plastic", contour: "rounded-case", imageHash: "f0a9-cc11-01", keywords: ["grey", "wireless", "case"] },
-    { id: "fp-2", palette: "teal-slate", texture: "matte-plastic", contour: "rounded-case", imageHash: "f0a9-cd13-02", keywords: ["grey", "wireless", "case"] },
-    { id: "fp-3", palette: "blue-violet", texture: "hard-shell", contour: "rectangular", imageHash: "7ab2-9d30-77", keywords: ["scientific", "calculator", "casio"] },
-    { id: "fp-4", palette: "cobalt-sky", texture: "paper-soft", contour: "flat-book", imageHash: "2fd1-aa77-91", keywords: ["blue", "notebook", "spiral"] },
-    { id: "fp-5", palette: "amber-white", texture: "laminated", contour: "card-flat", imageHash: "9ae1-1120-d3", keywords: ["identity", "badge", "lanyard"] },
-    { id: "fp-6", palette: "charcoal-silver", texture: "cable-rubber", contour: "looped", imageHash: "fe44-771b-a0", keywords: ["charger", "adapter", "laptop"] },
-    { id: "fp-7", palette: "cobalt-sky", texture: "paper-soft", contour: "flat-book", imageHash: "2fd1-aa91-99", keywords: ["blue", "notebook", "spiral"] },
-    { id: "fp-8", palette: "amber-white", texture: "laminated", contour: "card-flat", imageHash: "9ae1-1131-e8", keywords: ["identity", "badge", "lanyard"] },
-  ];
-
-  const reports = [
-    {
-      id: "report-1",
-      itemName: "Grey wireless earbuds",
-      type: "lost",
-      category: "Electronics",
-      location: "Main Library",
-      date: "2026-04-22",
-      description: "Grey earbuds in a compact case with a tiny scratch on the lid.",
-      status: "Matched",
-      reporterAccountId: "acc-user-1",
-      mediaId: "media-1",
-      fingerprintId: "fp-1",
-      generalLocation: "Main Library, floor 1",
-      createdAt: "2026-04-22T10:15:00.000Z",
-    },
-    {
-      id: "report-2",
-      itemName: "Earbuds near reading bay",
-      type: "found",
-      category: "Electronics",
-      location: "Main Library",
-      date: "2026-04-22",
-      description: "Grey earbuds case found near the reading bay, case has visible surface scratch.",
-      status: "Matched",
-      reporterAccountId: "acc-admin-1",
-      mediaId: "media-2",
-      fingerprintId: "fp-2",
-      generalLocation: "Main Library, reading bay",
-      createdAt: "2026-04-22T11:00:00.000Z",
-    },
-    {
-      id: "report-3",
-      itemName: "Scientific calculator",
-      type: "lost",
-      category: "Stationery",
-      location: "Block A",
-      date: "2026-04-21",
-      description: "Casio calculator with a sticker on the back and an exam seat number.",
-      status: "Pending",
-      reporterAccountId: "acc-user-1",
-      mediaId: "media-3",
-      fingerprintId: "fp-3",
-      generalLocation: "Block A, classroom corridor",
-      createdAt: "2026-04-21T15:00:00.000Z",
-    },
-    {
-      id: "report-4",
-      itemName: "Blue spiral notebook",
-      type: "found",
-      category: "Stationery",
-      location: "Seminar Hall",
-      date: "2026-04-20",
-      description: "Blue notebook with a few handwritten formula sheets inside.",
-      status: "Verified",
-      reporterAccountId: "acc-admin-2",
-      mediaId: "media-4",
-      fingerprintId: "fp-4",
-      generalLocation: "Seminar Hall, rear seating",
-      createdAt: "2026-04-20T12:40:00.000Z",
-    },
-    {
-      id: "report-7",
-      itemName: "Blue engineering notebook",
-      type: "lost",
-      category: "Stationery",
-      location: "Seminar Hall",
-      date: "2026-04-20",
-      description: "Blue spiral notebook with a formula sheet clipped inside.",
-      status: "Verified",
-      reporterAccountId: "acc-user-1",
-      mediaId: "media-7",
-      fingerprintId: "fp-7",
-      generalLocation: "Seminar Hall, middle rows",
-      createdAt: "2026-04-20T11:55:00.000Z",
-    },
-    {
-      id: "report-5",
-      itemName: "Student identity card",
-      type: "lost",
-      category: "Personal Items",
-      location: "Admin Office",
-      date: "2026-04-19",
-      description: "CVR identity card attached to a dark lanyard.",
-      status: "Returned",
-      reporterAccountId: "acc-user-1",
-      mediaId: "media-5",
-      fingerprintId: "fp-5",
-      generalLocation: "Admin Office reception",
-      createdAt: "2026-04-19T09:20:00.000Z",
-    },
-    {
-      id: "report-8",
-      itemName: "Identity card with lanyard",
-      type: "found",
-      category: "Personal Items",
-      location: "Admin Office",
-      date: "2026-04-19",
-      description: "Student ID card with a dark lanyard found near the reception counter.",
-      status: "Returned",
-      reporterAccountId: "acc-admin-1",
-      mediaId: "media-8",
-      fingerprintId: "fp-8",
-      generalLocation: "Admin Office reception",
-      createdAt: "2026-04-19T09:40:00.000Z",
-    },
-    {
-      id: "report-6",
-      itemName: "Black laptop charger",
-      type: "found",
-      category: "Electronics",
-      location: "Canteen",
-      date: "2026-04-22",
-      description: "Black charger with wrapped cable and silver adapter head.",
-      status: "Pending",
-      reporterAccountId: "acc-admin-2",
-      mediaId: "media-6",
-      fingerprintId: "fp-6",
-      generalLocation: "Canteen, south tables",
-      createdAt: "2026-04-22T13:30:00.000Z",
-    },
-  ];
-
-  const matches = [
-    {
-      id: "match-1",
-      lostReportId: "report-1",
-      foundReportId: "report-2",
-      confidence: 94,
-      status: "Matched",
-      reviewedByAccountId: null,
-      createdAt: "2026-04-22T11:05:00.000Z",
-      verificationNotes: "Visual fingerprint pipeline flagged near-identical casing, palette, and scratch placement.",
-    },
-    {
-      id: "match-2",
-      lostReportId: "report-7",
-      foundReportId: "report-4",
-      confidence: 91,
-      status: "Verified",
-      reviewedByAccountId: "acc-admin-2",
-      createdAt: "2026-04-20T12:50:00.000Z",
-      verificationNotes: "Owner confirmed page markings during desk verification.",
-    },
-    {
-      id: "match-3",
-      lostReportId: "report-5",
-      foundReportId: "report-8",
-      confidence: 97,
-      status: "Returned",
-      reviewedByAccountId: "acc-admin-1",
-      createdAt: "2026-04-19T10:00:00.000Z",
-      verificationNotes: "Photo, ID number, and lanyard color confirmed before handover.",
-    },
-  ];
-
-  const adminNotes = [
-    { id: "note-1", reportId: "report-1", body: "Student described a scratch on the hinge edge.", createdByAccountId: "acc-admin-1", createdAt: "2026-04-22T10:20:00.000Z" },
-    { id: "note-2", reportId: "report-2", body: "Stored temporarily in library desk locker 3.", createdByAccountId: "acc-admin-1", createdAt: "2026-04-22T11:10:00.000Z" },
-    { id: "note-3", reportId: "report-6", body: "Awaiting charger wattage confirmation from claimant.", createdByAccountId: "acc-admin-2", createdAt: "2026-04-22T13:40:00.000Z" },
-  ];
-
-  const auditHistory = [
-    { id: "audit-1", reportId: "report-1", action: "MATCH_SUGGESTED", actorAccountId: "system", at: "2026-04-22T11:05:00.000Z", details: "Visual Verification Pipeline suggested a 94% match." },
-    { id: "audit-2", reportId: "report-4", action: "VERIFIED", actorAccountId: "acc-admin-2", at: "2026-04-20T13:10:00.000Z", details: "Admin verified side-by-side notebook markers." },
-    { id: "audit-3", reportId: "report-5", action: "RETURNED", actorAccountId: "acc-admin-1", at: "2026-04-19T16:30:00.000Z", details: "Item released after institutional ID confirmation." },
-  ];
+  const reports = [];
+  const matches = [];
+  const adminNotes = [];
+  const auditHistory = [];
 
   return {
     accounts,
@@ -391,8 +219,18 @@ function createDefaultState() {
 }
 
 function normalizeState(rawState) {
+  if (!rawState) return createDefaultState();
+  
   const nextState = {
     ...rawState,
+    accounts: Array.isArray(rawState.accounts) ? rawState.accounts : [],
+    reports: Array.isArray(rawState.reports) ? rawState.reports : [],
+    userProfiles: Array.isArray(rawState.userProfiles) ? rawState.userProfiles : [],
+    reportMedia: Array.isArray(rawState.reportMedia) ? rawState.reportMedia : [],
+    visualFingerprints: Array.isArray(rawState.visualFingerprints) ? rawState.visualFingerprints : [],
+    matches: Array.isArray(rawState.matches) ? rawState.matches : [],
+    adminNotes: Array.isArray(rawState.adminNotes) ? rawState.adminNotes : [],
+    auditHistory: Array.isArray(rawState.auditHistory) ? rawState.auditHistory : [],
     passwordResetRequests: Array.isArray(rawState.passwordResetRequests) ? rawState.passwordResetRequests : [],
     mailQueue: Array.isArray(rawState.mailQueue) ? rawState.mailQueue : [],
     claims: Array.isArray(rawState.claims) ? rawState.claims : [],
@@ -401,7 +239,6 @@ function normalizeState(rawState) {
   const profileEmailByInstitutionalId = {
     "26B81A0001": "26b81a0001@cvr.ac.in",
     "26B81A0002": "26b81a0002@cvr.ac.in",
-    "26B81A1024": "26b81a1024@cvr.ac.in",
   };
 
   nextState.userProfiles = (nextState.userProfiles || []).map((profile) => {
@@ -433,10 +270,12 @@ async function saveState(nextState = state) {
       body: JSON.stringify({ state: persistedState }),
     });
     if (!response.ok) {
-      throw new Error(`Shared state save failed with status ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Shared state save failed with status ${response.status}`);
     }
   } catch (error) {
     console.error("Failed to persist FindIt state", error);
+    // Notify user if possible (requires UI context)
     throw error;
   }
 }
@@ -444,6 +283,7 @@ async function saveState(nextState = state) {
 function renderApp() {
   const account = getCurrentAccount();
   app.innerHTML = `
+    <div class="background-grid"></div>
     <main class="shell">
       ${renderTopbar(account)}
       ${renderHero(account)}
@@ -455,18 +295,26 @@ function renderApp() {
 }
 
 function renderTopbar(account) {
+  const syncTime = uiState.lastSyncAt ? uiState.lastSyncAt.toLocaleTimeString() : "Never";
   return `
     <header class="topbar card">
       <div>
-        <span class="eyebrow">CVR Institutional Lost & Found</span>
-        <h2>FindIt Public Search + Admin Verification</h2>
+        <span class="eyebrow">Institutional Lost & Found</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2>FindIt</h2>
+          <div class="meta-pill" style="font-size: 0.65rem; display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${uiState.isSyncing ? "#f59e0b" : "#10b981"};"></span>
+            ${uiState.isSyncing ? "Syncing..." : `Last Sync: ${syncTime}`}
+            <button class="text-button" data-action="sync-now" style="font-size: 0.8rem; text-decoration: none; padding: 0 4px;">🔄</button>
+          </div>
+        </div>
       </div>
       <div class="topbar-actions">
         ${
           account
             ? `
               <div class="user-badge">
-                <span>${account.role === "admin" ? "Administrator" : "Authenticated user"}</span>
+                <span>${account.role === "admin" ? "🛡️ Administrator" : "👤 Authenticated User"}</span>
                 <strong>${escapeHtml(account.username)}</strong>
                 <small>${escapeHtml(account.institutionalId)}</small>
               </div>
@@ -474,9 +322,9 @@ function renderTopbar(account) {
             `
             : `
               <div class="user-badge">
-                <span>Public access</span>
-                <strong>Search without login</strong>
-                <small>Login required only for restricted actions</small>
+                <span>🌐 Public Access</span>
+                <strong>Search items freely</strong>
+                <small>Login to claim or report</small>
               </div>
             `
         }
@@ -489,25 +337,24 @@ function renderHero(account) {
   return `
     <section class="hero-grid">
       <section class="hero-panel card">
-        <span class="eyebrow">Open public discovery</span>
-        <h1>Search lost and found items before you ever sign in.</h1>
+        <span class="eyebrow">Discovery Portal</span>
+        <h1>Lost it? Find it. Found it? Return it.</h1>
         <p class="hero-copy">
-          Public visitors can browse reported items by category and location,
-          while protected workflows use institutional IDs, hashed credentials,
-          and admin-controlled visual verification before release.
+          The institutional platform for tracking and recovering lost belongings. 
+          Browse public listings or sign in to submit a report with our automated visual matching pipeline.
         </p>
         <div class="security-strip">
           <article class="security-tile">
-            <span>Public search</span>
-            <strong>Lost and found gallery with category and location filters</strong>
+            <span>🔍 Search</span>
+            <strong>Public gallery with smart category and location filters</strong>
           </article>
           <article class="security-tile">
-            <span>Restricted identity</span>
-            <strong>XXB81AXXXX institutional ID validation with one-way password hashing</strong>
+            <span>🛡️ Identity</span>
+            <strong>Institutional ID validation with secure hashed credentials</strong>
           </article>
           <article class="security-tile">
-            <span>Admin oversight</span>
-            <strong>Visual fingerprint suggestions plus side-by-side verification authority</strong>
+            <span>✅ Verification</span>
+            <strong>Automated visual fingerprinting and admin-led verification</strong>
           </article>
         </div>
       </section>
@@ -532,11 +379,13 @@ function renderHero(account) {
                 <button class="tab-button ${uiState.authMode === "login" ? "is-active" : ""}" data-auth-mode="login">Sign In</button>
                 <button class="tab-button ${uiState.authMode === "register" ? "is-active" : ""}" data-auth-mode="register">Register</button>
               </div>
-              <div class="demo-admins">
-                <span>Admin accounts for this update</span>
-                <strong>navadeep • 26B81A0001</strong>
-                <strong>cvr_college • 26B81A0002</strong>
-                <small>Default admin passwords are supported for login, but only salted hashes are stored in app state.</small>
+              <div class="demo-admins" style="background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-hover);">
+                <span>🛡️ Admin Access for Testing</span>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                  <div><strong>navadeep</strong> • 26B81A0001</div>
+                  <div><strong>cvr_college</strong> • 26B81A0002</div>
+                </div>
+                <small style="display: block; margin-top: 0.5rem; opacity: 0.8;">Use these accounts to access the verification dashboard.</small>
               </div>
               ${
                 uiState.authMode === "login"
@@ -563,8 +412,10 @@ function renderLoginForm() {
         <label for="login-password">Password</label>
         <input id="login-password" name="password" type="password" placeholder="Enter your password" required />
       </div>
-      <button class="primary-button" type="submit">Authenticate</button>
-      <button class="text-button" type="button" data-action="show-forgot-password">Forgot password?</button>
+      <button class="primary-button" type="submit">🔒 Authenticate</button>
+      <div style="text-align: center;">
+        <button class="text-button" type="button" data-action="show-forgot-password">Forgot your password?</button>
+      </div>
       <p class="inline-message" id="login-message"></p>
     </form>
   `;
@@ -724,16 +575,16 @@ function renderPublicExplorer() {
       <section class="public-results card">
         <div class="public-results-head">
           <div>
-            <span class="eyebrow">Public gallery</span>
-            <h3>${visibleReports.length} active items visible</h3>
+            <span class="eyebrow">Active Gallery</span>
+            <h3>${visibleReports.length} Items Available</h3>
           </div>
-          <div class="meta-pill">Returned items remain only in audit history</div>
+          <div class="meta-pill">🔄 Live Updates Active</div>
         </div>
         <div class="public-list">
           ${
             visibleReports.length
               ? visibleReports.map((report) => renderPublicCard(report, viewer)).join("")
-              : `<div class="empty-state">No active items match the selected filters right now.</div>`
+              : `<div class="empty-state"><h3>No matches found</h3><p>Try adjusting your filters or search query.</p></div>`
           }
         </div>
       </section>
@@ -760,20 +611,20 @@ function renderPublicCard(report, viewer) {
           <span class="status-badge ${statusClass(report.status)}">${report.status}</span>
         </div>
         <div class="meta-row">
-          <span class="meta-pill">${capitalize(report.type)}</span>
-          <span class="meta-pill">${escapeHtml(report.category)}</span>
-          <span class="meta-pill">${escapeHtml(report.generalLocation)}</span>
+          <span class="meta-pill">📁 ${capitalize(report.type)}</span>
+          <span class="meta-pill">🏷️ ${escapeHtml(report.category)}</span>
+          <span class="meta-pill">📍 ${escapeHtml(report.generalLocation)}</span>
         </div>
         <p class="report-description">${escapeHtml(report.description)}</p>
         <div class="meta-row">
           ${
             !viewer
-              ? `<span class="meta-pill">Login required to claim</span>`
+              ? `<span class="meta-pill">🔒 Login to claim</span>`
               : viewer.id === report.reporterAccountId
-                ? `<span class="meta-pill">You posted this record</span>`
+                ? `<span class="meta-pill">✨ You posted this</span>`
                 : existingClaim
-                  ? `<span class="meta-pill">Claim submitted: ${escapeHtml(existingClaim.status)}</span>`
-                  : `<button class="ghost-button" data-action="claim-report" data-report-id="${report.id}">Claim this item</button>`
+                  ? `<span class="meta-pill">📩 Claim: ${escapeHtml(existingClaim.status)}</span>`
+                  : `<button class="primary-button" data-action="claim-report" data-report-id="${report.id}" style="padding: 0.5rem 1.25rem; font-size: 0.8rem;">Claim Item</button>`
           }
         </div>
       </div>
@@ -789,24 +640,24 @@ function renderDashboard(account) {
   return `
     <section class="summary-grid">
       <article class="summary-card card">
-        <span>Tracked records</span>
+        <span>📊 Tracked Records</span>
         <strong>${reports.length}</strong>
-        <p class="detail-copy">Relationally linked reports visible to this session.</p>
+        <p class="detail-copy">Relationally linked reports.</p>
       </article>
       <article class="summary-card card">
-        <span>Visual matches</span>
+        <span>✨ Visual Matches</span>
         <strong>${matches.filter((match) => match.status === "Matched").length}</strong>
-        <p class="detail-copy">Pending side-by-side admin review.</p>
+        <p class="detail-copy">Pending admin review.</p>
       </article>
       <article class="summary-card card">
-        <span>Verified items</span>
+        <span>✅ Verified Items</span>
         <strong>${reports.filter((report) => report.status === "Verified").length}</strong>
-        <p class="detail-copy">Ready for controlled handover.</p>
+        <p class="detail-copy">Ready for handover.</p>
       </article>
       <article class="summary-card card">
-        <span>Top confidence</span>
+        <span>📈 Accuracy</span>
         <strong>${highestConfidence}%</strong>
-        <p class="detail-copy">Highest active visual fingerprint similarity.</p>
+        <p class="detail-copy">Peak visual similarity score.</p>
       </article>
     </section>
 
@@ -920,7 +771,7 @@ function renderReportCards(reports, account) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   if (!filtered.length) {
-    return `<div class="empty-state">No reports match the selected status filter.</div>`;
+    return `<div class="empty-state"><h3>No records</h3><p>No reports match the current filter.</p></div>`;
   }
 
   return filtered.map((report) => {
@@ -1254,6 +1105,9 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-action='delete-report']").forEach((button) => {
     button.addEventListener("click", async () => deleteReport(button.dataset.reportId));
+  });
+  document.querySelectorAll("[data-action='sync-now']").forEach((button) => {
+    button.addEventListener("click", syncStateFromServer);
   });
 }
 

@@ -21,6 +21,11 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: "Missing state payload." });
     }
 
+    const { state } = req.body;
+    if (!Array.isArray(state.accounts) || !Array.isArray(state.reports)) {
+      return res.status(400).json({ error: "Invalid state structure: accounts and reports must be arrays." });
+    }
+
     try {
       await writeState(req.body.state);
       return res.status(200).json({ ok: true });
