@@ -1,26 +1,17 @@
-const { list, put } = require("@vercel/blob");
+const { get, put } = require("@vercel/blob");
 
 const STATE_PATH = "db/findit-state.json";
 
 async function readState() {
-  const result = await list({ prefix: STATE_PATH, limit: 1 });
-  const existing = result.blobs.find((blob) => blob.pathname === STATE_PATH) || result.blobs[0];
+  const result = await get(STATE_PATH, {
+    access: "private",
+  });
 
-  if (!existing) {
+  if (!result) {
     return null;
   }
 
-  const response = await fetch(existing.url, {
-    headers: {
-      Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Blob read failed with status ${response.status}`);
-  }
-
-  return response.json();
+  return JSON.parse(await streamToString(result.stream));
 }
 
 async function writeState(state) {
@@ -36,3 +27,11 @@ module.exports = {
   readState,
   writeState,
 };
+
+async function streamToString(stream) {
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
