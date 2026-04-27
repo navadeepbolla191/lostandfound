@@ -73,6 +73,7 @@ async function loadState(options = {}) {
       return remoteState;
     }
   } catch (error) {
+    uiState.lastServerError = error.message;
     console.error("Failed to load remote FindIt data", error);
   }
 
