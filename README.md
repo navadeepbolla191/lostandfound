@@ -6,6 +6,7 @@ FindIt is a smart institutional lost-and-found web application for CVR that comb
 - restricted reporting through institutional ID authentication
 - salted one-way password hashing
 - admin-controlled visual verification before release
+- Vercel-backed persistent storage for shared accounts and reports
 
 ## Open
 
@@ -47,6 +48,9 @@ You can also register additional non-admin users from the app.
 - normalized relational-style client data for accounts, profiles, reports, media, fingerprints, matches, notes, and audit history
 - protected lost/found reporting
 - forgot-password flow with OTP generation, expiry, reset verification, and server-backed email dispatch
+- persistent user storage across devices through Vercel Blob
+- claim requests from users on public items
+- administrator deletion of lost/found posts
 - visual fingerprint generation and high-confidence match suggestion
 - admin side-by-side match verification
 - verified and returned lifecycle handling

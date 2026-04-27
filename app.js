@@ -1,4 +1,5 @@
 const STORAGE_KEY = "findit-relational-v2";
+const SESSION_KEY = "findit-session-account-id-v1";
 const ID_PATTERN = /^\d{2}B81A[A-Za-z0-9]{4}$/;
 const CATEGORY_OPTIONS = ["Electronics", "Stationery", "Personal Items", "Documents", "Accessories"];
 const LOCATION_OPTIONS = [
@@ -36,7 +37,7 @@ let state;
 init();
 
 async function init() {
-  state = loadState();
+  state = await loadState();
   renderApp();
 }
 
@@ -57,7 +58,21 @@ function seedImage(label, colorA, colorB) {
   `)}`;
 }
 
-function loadState() {
+async function loadState() {
+  try {
+    const response = await fetch("/api/state");
+    if (response.ok) {
+      const payload = await response.json();
+      if (payload.state) {
+        const remoteState = normalizeState(payload.state);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+        return remoteState;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load remote FindIt data", error);
+  }
+
   const saved = window.localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
@@ -67,7 +82,9 @@ function loadState() {
     }
   }
 
-  return normalizeState(createDefaultState());
+  const defaultState = normalizeState(createDefaultState());
+  await saveState(defaultState);
+  return defaultState;
 }
 
 function createDefaultState() {
@@ -329,6 +346,7 @@ function createDefaultState() {
     auditHistory,
     passwordResetRequests: [],
     mailQueue: [],
+    claims: [],
     currentSessionAccountId: null,
   };
 }
@@ -338,6 +356,7 @@ function normalizeState(rawState) {
     ...rawState,
     passwordResetRequests: Array.isArray(rawState.passwordResetRequests) ? rawState.passwordResetRequests : [],
     mailQueue: Array.isArray(rawState.mailQueue) ? rawState.mailQueue : [],
+    claims: Array.isArray(rawState.claims) ? rawState.claims : [],
   };
 
   const profileEmailByInstitutionalId = {
@@ -356,8 +375,25 @@ function normalizeState(rawState) {
   return nextState;
 }
 
-function saveState() {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function saveState(nextState = state) {
+  const persistedState = {
+    ...nextState,
+    currentSessionAccountId: null,
+  };
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
+
+  try {
+    await fetch("/api/state", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ state: persistedState }),
+    });
+  } catch (error) {
+    console.error("Failed to persist FindIt state", error);
+  }
 }
 
 function renderApp() {
@@ -600,6 +636,7 @@ function renderForgotPasswordForm() {
 
 function renderPublicExplorer() {
   const visibleReports = getPublicReports();
+  const viewer = getCurrentAccount();
   const categories = ["all", ...CATEGORY_OPTIONS];
   const locations = ["all", ...LOCATION_OPTIONS];
 
@@ -650,7 +687,7 @@ function renderPublicExplorer() {
         <div class="public-list">
           ${
             visibleReports.length
-              ? visibleReports.map((report) => renderPublicCard(report)).join("")
+              ? visibleReports.map((report) => renderPublicCard(report, viewer)).join("")
               : `<div class="empty-state">No active items match the selected filters right now.</div>`
           }
         </div>
@@ -659,8 +696,13 @@ function renderPublicExplorer() {
   `;
 }
 
-function renderPublicCard(report) {
+function renderPublicCard(report, viewer) {
   const media = getMedia(report.mediaId);
+  const existingClaim = viewer
+    ? state.claims.find(
+        (claim) => claim.reportId === report.id && claim.claimantAccountId === viewer.id,
+      )
+    : null;
   return `
     <article class="public-card">
       <img class="public-image" src="${media.image}" alt="${escapeAttr(report.itemName)}" />
@@ -678,6 +720,17 @@ function renderPublicCard(report) {
           <span class="meta-pill">${escapeHtml(report.generalLocation)}</span>
         </div>
         <p class="report-description">${escapeHtml(report.description)}</p>
+        <div class="meta-row">
+          ${
+            !viewer
+              ? `<span class="meta-pill">Login required to claim</span>`
+              : viewer.id === report.reporterAccountId
+                ? `<span class="meta-pill">You posted this record</span>`
+                : existingClaim
+                  ? `<span class="meta-pill">Claim submitted: ${escapeHtml(existingClaim.status)}</span>`
+                  : `<button class="ghost-button" data-action="claim-report" data-report-id="${report.id}">Claim this item</button>`
+          }
+        </div>
       </div>
     </article>
   `;
@@ -985,6 +1038,7 @@ function renderAdminDetail(report) {
   const notes = state.adminNotes.filter((note) => note.reportId === report.id);
   const matches = getMatchesForReport(report.id);
   const verifiedMatch = matches.find((match) => match.status === "Verified");
+  const claims = state.claims.filter((claim) => claim.reportId === report.id);
 
   return `
     <article class="detail-card">
@@ -1009,15 +1063,38 @@ function renderAdminDetail(report) {
           <li>Related matches: ${matches.length ? matches.map((match) => `${match.status} (${match.confidence}%)`).join(", ") : "None yet"}</li>
         </ul>
         ${
+          claims.length
+            ? `
+              <div class="audit-card">
+                <strong>Claims</strong>
+                <ul>${claims.map((claim) => {
+                  const claimant = getAccount(claim.claimantAccountId);
+                  const claimantProfile = claimant ? getProfile(claimant.profileId) : null;
+                  return `<li>${escapeHtml(claimantProfile?.fullName || claimant?.username || "Unknown")} • ${escapeHtml(claim.status)} • ${escapeHtml(claim.createdAt.slice(0, 10))}</li>`;
+                }).join("")}</ul>
+              </div>
+            `
+            : ""
+        }
+        ${
           verifiedMatch
             ? `
               <div class="report-actions">
                 <button class="ghost-button" data-action="return-match" data-match-id="${verifiedMatch.id}">
                   Mark item as returned
                 </button>
+                <button class="ghost-button" data-action="delete-report" data-report-id="${report.id}">
+                  Delete post
+                </button>
               </div>
             `
-            : ""
+            : `
+              <div class="report-actions">
+                <button class="ghost-button" data-action="delete-report" data-report-id="${report.id}">
+                  Delete post
+                </button>
+              </div>
+            `
         }
         ${
           notes.length
@@ -1085,9 +1162,8 @@ function bindEvents() {
   });
 
   document.querySelector("[data-action='logout']")?.addEventListener("click", () => {
-    state.currentSessionAccountId = null;
+    clearSessionAccountId();
     uiState.pendingPhoto = "";
-    saveState();
     renderApp();
   });
 
@@ -1123,10 +1199,16 @@ function bindEvents() {
     renderApp();
   });
   document.querySelectorAll("[data-action='verify-match']").forEach((button) => {
-    button.addEventListener("click", () => updateMatchLifecycle(button.dataset.matchId, "Verified"));
+    button.addEventListener("click", async () => updateMatchLifecycle(button.dataset.matchId, "Verified"));
   });
   document.querySelectorAll("[data-action='return-match']").forEach((button) => {
-    button.addEventListener("click", () => updateMatchLifecycle(button.dataset.matchId, "Returned"));
+    button.addEventListener("click", async () => updateMatchLifecycle(button.dataset.matchId, "Returned"));
+  });
+  document.querySelectorAll("[data-action='claim-report']").forEach((button) => {
+    button.addEventListener("click", async () => claimReport(button.dataset.reportId));
+  });
+  document.querySelectorAll("[data-action='delete-report']").forEach((button) => {
+    button.addEventListener("click", async () => deleteReport(button.dataset.reportId));
   });
 }
 
@@ -1154,8 +1236,7 @@ async function handleLogin(event) {
     return;
   }
 
-  state.currentSessionAccountId = account.id;
-  saveState();
+  setSessionAccountId(account.id);
   renderApp();
 }
 
@@ -1219,8 +1300,8 @@ async function handleRegister(event) {
     createdAt: new Date().toISOString(),
   });
 
-  state.currentSessionAccountId = accountId;
-  saveState();
+  setSessionAccountId(accountId);
+  await saveState();
   renderApp();
 }
 
@@ -1297,7 +1378,7 @@ async function handleForgotPassword(event) {
       state.passwordResetRequests = state.passwordResetRequests.filter(
         (request) => request.accountId !== account.id,
       );
-      saveState();
+      await saveState();
       setMessage(
         message,
         error instanceof Error ? error.message : "OTP delivery failed. Please try again.",
@@ -1311,7 +1392,7 @@ async function handleForgotPassword(event) {
       institutionalId,
       email,
     };
-    saveState();
+    await saveState();
     renderApp();
     const refreshedMessage = document.querySelector("#forgot-message");
     setMessage(
@@ -1370,7 +1451,7 @@ async function handleForgotPassword(event) {
     details: "User completed OTP-based password reset through institutional email verification.",
   });
 
-  saveState();
+  await saveState();
   uiState.authMode = "login";
   resetPasswordUiState();
   renderApp();
@@ -1457,7 +1538,7 @@ async function handleReportSubmit(event) {
     setMessage(message, "Report submitted. It is now visible in public search as a pending record.", "success");
   }
 
-  saveState();
+  await saveState();
   uiState.pendingPhoto = "";
   event.currentTarget.reset();
   renderApp();
@@ -1577,7 +1658,7 @@ function computeVisualConfidence(reportA, reportB) {
   return Math.min(score, 98);
 }
 
-function updateMatchLifecycle(matchId, nextStatus) {
+async function updateMatchLifecycle(matchId, nextStatus) {
   const account = getCurrentAccount();
   if (!account || account.role !== "admin") return;
 
@@ -1604,7 +1685,7 @@ function updateMatchLifecycle(matchId, nextStatus) {
     });
   });
 
-  saveState();
+  await saveState();
   renderApp();
 }
 
@@ -1670,7 +1751,7 @@ function getAdminSearchResults() {
 }
 
 function getCurrentAccount() {
-  return state.accounts.find((account) => account.id === state.currentSessionAccountId) || null;
+  return state.accounts.find((account) => account.id === getSessionAccountId()) || null;
 }
 
 function getAccount(accountId) {
@@ -1693,6 +1774,65 @@ function getFingerprint(fingerprintId) {
   return state.visualFingerprints.find((fingerprint) => fingerprint.id === fingerprintId);
 }
 
+async function claimReport(reportId) {
+  const account = getCurrentAccount();
+  if (!account) {
+    uiState.authMode = "login";
+    renderApp();
+    const loginMessage = document.querySelector("#login-message");
+    setMessage(loginMessage, "Login before submitting a claim request.", "error");
+    return;
+  }
+
+  const report = getReport(reportId);
+  if (!report || report.reporterAccountId === account.id) return;
+  if (state.claims.some((claim) => claim.reportId === reportId && claim.claimantAccountId === account.id)) {
+    return;
+  }
+
+  state.claims.unshift({
+    id: crypto.randomUUID(),
+    reportId,
+    claimantAccountId: account.id,
+    status: "Pending",
+    createdAt: new Date().toISOString(),
+  });
+
+  state.auditHistory.unshift({
+    id: crypto.randomUUID(),
+    reportId,
+    action: "CLAIM_REQUESTED",
+    actorAccountId: account.id,
+    at: new Date().toISOString(),
+    details: "A claimant requested access to this lost or found item.",
+  });
+
+  await saveState();
+  renderApp();
+}
+
+async function deleteReport(reportId) {
+  const account = getCurrentAccount();
+  if (!account || account.role !== "admin") return;
+
+  const report = getReport(reportId);
+  if (!report) return;
+
+  const relatedMatchIds = getMatchesForReport(reportId).map((match) => match.id);
+  state.matches = state.matches.filter((match) => !relatedMatchIds.includes(match.id));
+  state.claims = state.claims.filter((claim) => claim.reportId !== reportId);
+  state.adminNotes = state.adminNotes.filter((note) => note.reportId !== reportId);
+  state.auditHistory = state.auditHistory.filter((audit) => audit.reportId !== reportId);
+  state.reportMedia = state.reportMedia.filter((media) => media.id !== report.mediaId);
+  state.visualFingerprints = state.visualFingerprints.filter(
+    (fingerprint) => fingerprint.id !== report.fingerprintId,
+  );
+  state.reports = state.reports.filter((item) => item.id !== reportId);
+
+  await saveState();
+  renderApp();
+}
+
 function setMessage(node, text, type) {
   if (!node) return;
   node.textContent = text;
@@ -1713,6 +1853,18 @@ function getLatestResetMail() {
 
 function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function setSessionAccountId(accountId) {
+  window.localStorage.setItem(SESSION_KEY, accountId);
+}
+
+function getSessionAccountId() {
+  return window.localStorage.getItem(SESSION_KEY);
+}
+
+function clearSessionAccountId() {
+  window.localStorage.removeItem(SESSION_KEY);
 }
 
 async function sendOtpEmail({ email, institutionalId, otp, expiresAt }) {
