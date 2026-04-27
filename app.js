@@ -107,7 +107,14 @@ async function loadRemoteState() {
       cache: "no-store",
     });
     if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+      let errorMessage = `Server error: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) errorMessage = errorData.error;
+      } catch (e) {
+        // Fallback to status text
+      }
+      throw new Error(errorMessage);
     }
     const payload = await response.json();
     if (payload.state) {
