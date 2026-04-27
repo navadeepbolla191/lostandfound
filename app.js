@@ -139,7 +139,16 @@ async function syncStateFromServer() {
     console.warn("Sync failed, operating in offline mode.", err);
   } finally {
     uiState.isSyncing = false;
-    renderApp();
+    // Only perform full render if the user is not actively typing in a form
+    const activeEl = document.activeElement;
+    const isTyping = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.tagName === "SELECT");
+    
+    if (isTyping) {
+      updatePublicResults();
+      updateAdminResults();
+    } else {
+      renderApp();
+    }
   }
 }
 
@@ -517,6 +526,34 @@ function renderForgotPasswordForm() {
         : ""
     }
   `;
+}
+
+function updatePublicResults() {
+  const container = document.querySelector(".public-list");
+  const head = document.querySelector(".public-results-head h3");
+  if (!container || !head) return;
+  
+  const visibleReports = getPublicReports();
+  const viewer = getCurrentAccount();
+  
+  head.textContent = `${visibleReports.length} active items visible`;
+  container.innerHTML = visibleReports.length
+    ? visibleReports.map((report) => renderPublicCard(report, viewer)).join("")
+    : `<div class="empty-state">No active items match the selected filters right now.</div>`;
+    
+  bindEvents(); // Re-bind events for new cards
+}
+
+function updateAdminResults() {
+  const container = document.querySelector(".detail-list");
+  if (!container) return;
+  
+  const searchableReports = getAdminSearchResults();
+  container.innerHTML = searchableReports.length 
+    ? searchableReports.map((report) => renderAdminDetail(report)).join("") 
+    : `<div class="empty-state">No internal records match the admin search.</div>`;
+    
+  bindEvents(); // Re-bind events for new details
 }
 
 function renderPublicExplorer() {
@@ -1026,17 +1063,17 @@ function bindEvents() {
 
   document.querySelector("#public-query")?.addEventListener("input", (event) => {
     uiState.publicFilters.query = event.target.value;
-    renderApp();
+    updatePublicResults();
   });
 
   document.querySelector("#public-category")?.addEventListener("change", (event) => {
     uiState.publicFilters.category = event.target.value;
-    renderApp();
+    updatePublicResults();
   });
 
   document.querySelector("#public-location")?.addEventListener("change", (event) => {
     uiState.publicFilters.location = event.target.value;
-    renderApp();
+    updatePublicResults();
   });
 
   document.querySelectorAll("[data-filter-type]").forEach((button) => {
@@ -1081,7 +1118,7 @@ function bindEvents() {
   });
   document.querySelector("#admin-search")?.addEventListener("input", (event) => {
     uiState.adminSearch = event.target.value;
-    renderApp();
+    updateAdminResults();
   });
   document.querySelectorAll("[data-action='verify-match']").forEach((button) => {
     button.addEventListener("click", async () => updateMatchLifecycle(button.dataset.matchId, "Verified"));
