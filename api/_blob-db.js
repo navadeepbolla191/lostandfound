@@ -3,9 +3,21 @@ const { get, put } = require("@vercel/blob");
 const STATE_PATH = "db/findit-state.json";
 
 async function readState() {
-  const result = await get(STATE_PATH, {
-    access: "private",
-  });
+  let result;
+  try {
+    result = await get(STATE_PATH, {
+      access: "private",
+    });
+  } catch (error) {
+    if (
+      error &&
+      typeof error.message === "string" &&
+      (error.message.includes("not found") || error.message.includes("404"))
+    ) {
+      return null;
+    }
+    throw error;
+  }
 
   if (!result) {
     return null;

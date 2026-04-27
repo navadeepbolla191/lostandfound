@@ -58,9 +58,46 @@ function seedImage(label, colorA, colorB) {
   `)}`;
 }
 
-async function loadState() {
+async function loadState(options = {}) {
+  const { localFallback = true, createDefaultIfMissing = true } = options;
+
   try {
-    const response = await fetch("/api/state");
+    const remoteState = await loadRemoteState();
+    if (remoteState) {
+      return remoteState;
+    }
+  } catch (error) {
+    console.error("Failed to load remote FindIt data", error);
+  }
+
+  if (localFallback) {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return normalizeState(JSON.parse(saved));
+      } catch (error) {
+        console.error("Failed to parse stored FindIt data", error);
+      }
+    }
+  }
+
+  if (!createDefaultIfMissing) {
+    return null;
+  }
+
+  const defaultState = normalizeState(createDefaultState());
+  await saveState(defaultState);
+  return defaultState;
+}
+
+async function loadRemoteState() {
+  try {
+    const response = await fetch(`/api/state?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
     if (response.ok) {
       const payload = await response.json();
       if (payload.state) {
@@ -72,19 +109,21 @@ async function loadState() {
   } catch (error) {
     console.error("Failed to load remote FindIt data", error);
   }
+  return null;
+}
 
-  const saved = window.localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return normalizeState(JSON.parse(saved));
-    } catch (error) {
-      console.error("Failed to parse stored FindIt data", error);
-    }
+async function syncStateFromServer() {
+  const remoteState = await loadState({
+    localFallback: false,
+    createDefaultIfMissing: false,
+  });
+
+  if (remoteState) {
+    state = remoteState;
+    return remoteState;
   }
 
-  const defaultState = normalizeState(createDefaultState());
-  await saveState(defaultState);
-  return defaultState;
+  return state;
 }
 
 function createDefaultState() {
@@ -384,15 +423,21 @@ async function saveState(nextState = state) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
 
   try {
-    await fetch("/api/state", {
+    const response = await fetch("/api/state", {
       method: "POST",
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        "Cache-Control": "no-store",
       },
       body: JSON.stringify({ state: persistedState }),
     });
+    if (!response.ok) {
+      throw new Error(`Shared state save failed with status ${response.status}`);
+    }
   } catch (error) {
     console.error("Failed to persist FindIt state", error);
+    throw error;
   }
 }
 
@@ -1224,6 +1269,8 @@ async function handleLogin(event) {
     return;
   }
 
+  await syncStateFromServer();
+
   const account = state.accounts.find((candidate) => candidate.institutionalId === institutionalId);
   if (!account) {
     setMessage(message, "No account found for that institutional ID.", "error");
@@ -1271,6 +1318,8 @@ async function handleRegister(event) {
     return;
   }
 
+  await syncStateFromServer();
+
   if (state.accounts.some((account) => account.institutionalId === institutionalId || account.username === username)) {
     setMessage(message, "That institutional ID or username is already registered.", "error");
     return;
@@ -1316,6 +1365,8 @@ async function handleForgotPassword(event) {
     setMessage(message, "Institutional ID must follow the XXB81AXXXX format.", "error");
     return;
   }
+
+  await syncStateFromServer();
 
   const expectedEmail = `${institutionalId.toLowerCase()}@cvr.ac.in`;
   if (email !== expectedEmail) {
