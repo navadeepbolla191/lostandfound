@@ -1,34 +1,30 @@
-const { get, put } = require("@vercel/blob");
+const { list, put } = require("@vercel/blob");
 
 const STATE_PATH = "db/findit-state.json";
 
 async function readState() {
-  let result;
   try {
-    result = await get(STATE_PATH, {
-      access: "private",
+    const { blobs } = await list({
+      prefix: STATE_PATH,
+      limit: 1,
     });
-  } catch (error) {
-    if (
-      error &&
-      typeof error.message === "string" &&
-      (error.message.includes("not found") || error.message.includes("404"))
-    ) {
+    
+    if (blobs.length === 0) {
       return null;
     }
-    throw error;
-  }
-
-  if (!result) {
+    
+    const response = await fetch(blobs[0].url);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error("Vercel Blob Read Error:", error);
     return null;
   }
-
-  return JSON.parse(await streamToString(result.stream));
 }
 
 async function writeState(state) {
   await put(STATE_PATH, JSON.stringify(state), {
-    access: "private",
+    access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
