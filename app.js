@@ -303,10 +303,12 @@ function renderTopbar(account) {
         ${
           account
             ? `
-              <div class="user-badge">
-                <span>${account.role === "admin" ? "Administrator" : "Authenticated user"}</span>
-                <strong>${escapeHtml(account.username)}</strong>
-                <small>${escapeHtml(account.institutionalId)}</small>
+              <div class="user-badge" style="border-left: 2px solid var(--accent); padding-left: 1rem;">
+                <span class="eyebrow" style="color: var(--accent); font-weight: 700;">SIGNED IN AS</span>
+                <div style="display: flex; flex-direction: column;">
+                  <strong style="font-size: 1.1rem;">${escapeHtml(account.username)}</strong>
+                  <code style="font-size: 0.75rem; opacity: 0.8;">${escapeHtml(account.institutionalId)} (${account.role})</code>
+                </div>
               </div>
               <button class="ghost-button" data-action="logout">Log Out</button>
             `

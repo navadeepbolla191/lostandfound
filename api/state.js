@@ -7,6 +7,9 @@ module.exports = async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please add it in Vercel project settings.");
+      }
       const state = await readState();
       return res.status(200).json({ state });
     } catch (error) {
@@ -17,16 +20,13 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    if (!req.body || !req.body.state) {
-      return res.status(400).json({ error: "Missing state payload." });
-    }
-
-    const { state } = req.body;
-    if (!Array.isArray(state.accounts) || !Array.isArray(state.reports)) {
-      return res.status(400).json({ error: "Invalid state structure: accounts and reports must be arrays." });
-    }
-
     try {
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please add it in Vercel project settings.");
+      }
+      if (!req.body || !req.body.state) {
+        return res.status(400).json({ error: "Missing state payload." });
+      }
       await writeState(req.body.state);
       return res.status(200).json({ ok: true });
     } catch (error) {
