@@ -7,8 +7,9 @@ module.exports = async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      if (!process.env.BLOB_READ_WRITE_TOKEN) {
-        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please add it in Vercel project settings.");
+      const hasToken = process.env.BLOB_READ_WRITE_TOKEN || Object.keys(process.env).some(k => k.endsWith("_READ_WRITE_TOKEN"));
+      if (!hasToken) {
+        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please connect your Vercel Blob store.");
       }
       const state = await readState();
       return res.status(200).json({ state });
@@ -21,8 +22,9 @@ module.exports = async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      if (!process.env.BLOB_READ_WRITE_TOKEN) {
-        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please add it in Vercel project settings.");
+      const hasToken = process.env.BLOB_READ_WRITE_TOKEN || Object.keys(process.env).some(k => k.endsWith("_READ_WRITE_TOKEN"));
+      if (!hasToken) {
+        throw new Error("Missing BLOB_READ_WRITE_TOKEN. Please connect your Vercel Blob store.");
       }
       if (!req.body || !req.body.state) {
         return res.status(400).json({ error: "Missing state payload." });
