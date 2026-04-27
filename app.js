@@ -1,5 +1,5 @@
-const STORAGE_KEY = "findit-relational-v2";
-const SESSION_KEY = "findit-session-account-id-v1";
+const STORAGE_KEY = "findit-state-v4-clean";
+const SESSION_KEY = "findit-session-v4";
 const ID_PATTERN = /^\d{2}B81A[A-Za-z0-9]{4}$/;
 const CATEGORY_OPTIONS = ["Electronics", "Stationery", "Personal Items", "Documents", "Accessories"];
 const LOCATION_OPTIONS = [
@@ -214,13 +214,14 @@ function normalizeState(rawState) {
   const nextState = {
     ...rawState,
     accounts: Array.isArray(rawState.accounts) ? rawState.accounts : [],
-    reports: Array.isArray(rawState.reports) ? rawState.reports : [],
-    userProfiles: Array.isArray(rawState.userProfiles) ? rawState.userProfiles : [],
-    reportMedia: Array.isArray(rawState.reportMedia) ? rawState.reportMedia : [],
-    visualFingerprints: Array.isArray(rawState.visualFingerprints) ? rawState.visualFingerprints : [],
-    matches: Array.isArray(rawState.matches) ? rawState.matches : [],
-    adminNotes: Array.isArray(rawState.adminNotes) ? rawState.adminNotes : [],
-    auditHistory: Array.isArray(rawState.auditHistory) ? rawState.auditHistory : [],
+    reports: (Array.isArray(rawState.reports) ? rawState.reports : []).filter(r => !r.id.startsWith("report-")),
+    matches: (Array.isArray(rawState.matches) ? rawState.matches : []).filter(m => !m.id.startsWith("match-")),
+    userProfiles: (Array.isArray(rawState.userProfiles) ? rawState.userProfiles : []).filter(p => !p.id.startsWith("profile-user-")),
+    accounts: (Array.isArray(rawState.accounts) ? rawState.accounts : []).filter(a => !a.id.startsWith("acc-user-")),
+    reportMedia: (Array.isArray(rawState.reportMedia) ? rawState.reportMedia : []).filter(m => !m.id.startsWith("media-")),
+    visualFingerprints: (Array.isArray(rawState.visualFingerprints) ? rawState.visualFingerprints : []).filter(f => !f.id.startsWith("fp-")),
+    adminNotes: (Array.isArray(rawState.adminNotes) ? rawState.adminNotes : []).filter(n => !n.id.startsWith("note-")),
+    auditHistory: (Array.isArray(rawState.auditHistory) ? rawState.auditHistory : []).filter(h => !h.id.startsWith("audit-")),
     passwordResetRequests: Array.isArray(rawState.passwordResetRequests) ? rawState.passwordResetRequests : [],
     mailQueue: Array.isArray(rawState.mailQueue) ? rawState.mailQueue : [],
     claims: Array.isArray(rawState.claims) ? rawState.claims : [],
