@@ -1161,7 +1161,8 @@ async function handleLogin(event) {
 
   const account = state.accounts.find((candidate) => candidate.institutionalId === institutionalId);
   if (!account) {
-    setMessage(message, "No account found for that institutional ID.", "error");
+    const totalAccounts = state.accounts.length;
+    setMessage(message, `No account found for ${institutionalId}. (System synced: ${totalAccounts} accounts total)`, "error");
     return;
   }
 

@@ -6,14 +6,16 @@ async function readState() {
   try {
     const { blobs } = await list({
       prefix: STATE_PATH,
-      limit: 1,
     });
     
     if (blobs.length === 0) {
       return null;
     }
     
-    const response = await fetch(blobs[0].url);
+    // Pick the most recently uploaded blob
+    const latestBlob = blobs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+    
+    const response = await fetch(latestBlob.url);
     if (!response.ok) return null;
     return await response.json();
   } catch (error) {
