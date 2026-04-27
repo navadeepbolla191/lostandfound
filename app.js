@@ -31,6 +31,7 @@ const uiState = {
   adminSearch: "",
   lastSyncAt: null,
   isSyncing: false,
+  lastServerError: null,
 };
 
 const app = document.querySelector("#app");
@@ -130,9 +131,11 @@ async function syncStateFromServer() {
     if (remoteState) {
       state = remoteState;
       uiState.lastSyncAt = new Date();
+      uiState.lastServerError = null;
     }
   } catch (err) {
-    console.warn("Sync failed, operating in offline mode.");
+    uiState.lastServerError = err.message;
+    console.warn("Sync failed, operating in offline mode.", err);
   } finally {
     uiState.isSyncing = false;
     renderApp();
@@ -287,9 +290,9 @@ function renderTopbar(account) {
         <span class="eyebrow">Institutional Lost & Found</span>
         <div style="display: flex; align-items: center; gap: 12px;">
           <h2>FindIt</h2>
-          <div class="meta-pill" style="font-size: 0.65rem; display: flex; align-items: center; gap: 6px;">
+          <div class="meta-pill" style="font-size: 0.65rem; display: flex; align-items: center; gap: 6px;" title="${uiState.lastServerError || "No server errors"}">
             <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${uiState.isSyncing ? "#f59e0b" : uiState.lastSyncAt ? "#10b981" : "#ef4444"};"></span>
-            ${uiState.isSyncing ? "Syncing..." : uiState.lastSyncAt ? `Last Sync: ${syncTime}` : "Server Offline"}
+            ${uiState.isSyncing ? "Syncing..." : uiState.lastSyncAt ? `Last Sync: ${syncTime}` : `Offline: ${uiState.lastServerError || "Token Missing"}`}
             <button class="text-button" data-action="sync-now" style="font-size: 0.8rem; text-decoration: none; padding: 0 4px; color: inherit;">🔄</button>
           </div>
         </div>
