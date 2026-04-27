@@ -103,37 +103,21 @@ async function loadRemoteState() {
   try {
     const response = await fetch(`/api/state?t=${Date.now()}`, {
       cache: "no-store",
-      headers: {
-        "Cache-Control": "no-store",
-      },
     });
-    if (response.ok) {
-      const payload = await response.json();
-      if (payload.state) {
-        const remoteState = normalizeState(payload.state);
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
-        return remoteState;
-      }
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
     }
+    const payload = await response.json();
+    if (payload.state) {
+      const remoteState = normalizeState(payload.state);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+      return remoteState;
+    }
+    return null;
   } catch (error) {
     console.error("Failed to load remote FindIt data", error);
+    throw error;
   }
-  return null;
-}
-
-async function syncStateFromServer() {
-  const remoteState = await loadState({
-    localFallback: false,
-    createDefaultIfMissing: false,
-  });
-
-  if (remoteState) {
-    state = remoteState;
-    uiState.lastSyncAt = new Date();
-    return remoteState;
-  }
-
-  return state;
 }
 
 async function syncStateFromServer() {
@@ -147,6 +131,8 @@ async function syncStateFromServer() {
       state = remoteState;
       uiState.lastSyncAt = new Date();
     }
+  } catch (err) {
+    console.warn("Sync failed, operating in offline mode.");
   } finally {
     uiState.isSyncing = false;
     renderApp();
@@ -283,7 +269,6 @@ async function saveState(nextState = state) {
 function renderApp() {
   const account = getCurrentAccount();
   app.innerHTML = `
-    <div class="background-grid"></div>
     <main class="shell">
       ${renderTopbar(account)}
       ${renderHero(account)}
@@ -303,9 +288,9 @@ function renderTopbar(account) {
         <div style="display: flex; align-items: center; gap: 12px;">
           <h2>FindIt</h2>
           <div class="meta-pill" style="font-size: 0.65rem; display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${uiState.isSyncing ? "#f59e0b" : "#10b981"};"></span>
-            ${uiState.isSyncing ? "Syncing..." : `Last Sync: ${syncTime}`}
-            <button class="text-button" data-action="sync-now" style="font-size: 0.8rem; text-decoration: none; padding: 0 4px;">🔄</button>
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${uiState.isSyncing ? "#f59e0b" : uiState.lastSyncAt ? "#10b981" : "#ef4444"};"></span>
+            ${uiState.isSyncing ? "Syncing..." : uiState.lastSyncAt ? `Last Sync: ${syncTime}` : "Server Offline"}
+            <button class="text-button" data-action="sync-now" style="font-size: 0.8rem; text-decoration: none; padding: 0 4px; color: inherit;">🔄</button>
           </div>
         </div>
       </div>
@@ -314,7 +299,7 @@ function renderTopbar(account) {
           account
             ? `
               <div class="user-badge">
-                <span>${account.role === "admin" ? "🛡️ Administrator" : "👤 Authenticated User"}</span>
+                <span>${account.role === "admin" ? "Administrator" : "Authenticated user"}</span>
                 <strong>${escapeHtml(account.username)}</strong>
                 <small>${escapeHtml(account.institutionalId)}</small>
               </div>
@@ -322,9 +307,9 @@ function renderTopbar(account) {
             `
             : `
               <div class="user-badge">
-                <span>🌐 Public Access</span>
-                <strong>Search items freely</strong>
-                <small>Login to claim or report</small>
+                <span>Public access</span>
+                <strong>Search without login</strong>
+                <small>Login required only for restricted actions</small>
               </div>
             `
         }
@@ -337,24 +322,25 @@ function renderHero(account) {
   return `
     <section class="hero-grid">
       <section class="hero-panel card">
-        <span class="eyebrow">Discovery Portal</span>
-        <h1>Lost it? Find it. Found it? Return it.</h1>
+        <span class="eyebrow">Open public discovery</span>
+        <h1>Search lost and found items before you ever sign in.</h1>
         <p class="hero-copy">
-          The institutional platform for tracking and recovering lost belongings. 
-          Browse public listings or sign in to submit a report with our automated visual matching pipeline.
+          Public visitors can browse reported items by category and location,
+          while protected workflows use institutional IDs, hashed credentials,
+          and admin-controlled visual verification before release.
         </p>
         <div class="security-strip">
           <article class="security-tile">
-            <span>🔍 Search</span>
-            <strong>Public gallery with smart category and location filters</strong>
+            <span>Public search</span>
+            <strong>Lost and found gallery with category and location filters</strong>
           </article>
           <article class="security-tile">
-            <span>🛡️ Identity</span>
-            <strong>Institutional ID validation with secure hashed credentials</strong>
+            <span>Restricted identity</span>
+            <strong>XXB81AXXXX institutional ID validation with one-way password hashing</strong>
           </article>
           <article class="security-tile">
-            <span>✅ Verification</span>
-            <strong>Automated visual fingerprinting and admin-led verification</strong>
+            <span>Admin oversight</span>
+            <strong>Visual fingerprint suggestions plus side-by-side verification authority</strong>
           </article>
         </div>
       </section>
@@ -379,13 +365,11 @@ function renderHero(account) {
                 <button class="tab-button ${uiState.authMode === "login" ? "is-active" : ""}" data-auth-mode="login">Sign In</button>
                 <button class="tab-button ${uiState.authMode === "register" ? "is-active" : ""}" data-auth-mode="register">Register</button>
               </div>
-              <div class="demo-admins" style="background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-hover);">
-                <span>🛡️ Admin Access for Testing</span>
-                <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-                  <div><strong>navadeep</strong> • 26B81A0001</div>
-                  <div><strong>cvr_college</strong> • 26B81A0002</div>
-                </div>
-                <small style="display: block; margin-top: 0.5rem; opacity: 0.8;">Use these accounts to access the verification dashboard.</small>
+              <div class="demo-admins">
+                <span>Admin accounts for this update</span>
+                <strong>navadeep • 26B81A0001</strong>
+                <strong>cvr_college • 26B81A0002</strong>
+                <small>Default admin passwords are supported for login, but only salted hashes are stored in app state.</small>
               </div>
               ${
                 uiState.authMode === "login"
@@ -412,10 +396,8 @@ function renderLoginForm() {
         <label for="login-password">Password</label>
         <input id="login-password" name="password" type="password" placeholder="Enter your password" required />
       </div>
-      <button class="primary-button" type="submit">🔒 Authenticate</button>
-      <div style="text-align: center;">
-        <button class="text-button" type="button" data-action="show-forgot-password">Forgot your password?</button>
-      </div>
+      <button class="primary-button" type="submit">Authenticate</button>
+      <button class="text-button" type="button" data-action="show-forgot-password">Forgot password?</button>
       <p class="inline-message" id="login-message"></p>
     </form>
   `;
@@ -575,16 +557,16 @@ function renderPublicExplorer() {
       <section class="public-results card">
         <div class="public-results-head">
           <div>
-            <span class="eyebrow">Active Gallery</span>
-            <h3>${visibleReports.length} Items Available</h3>
+            <span class="eyebrow">Public gallery</span>
+            <h3>${visibleReports.length} active items visible</h3>
           </div>
-          <div class="meta-pill">🔄 Live Updates Active</div>
+          <div class="meta-pill">Returned items remain only in audit history</div>
         </div>
         <div class="public-list">
           ${
             visibleReports.length
               ? visibleReports.map((report) => renderPublicCard(report, viewer)).join("")
-              : `<div class="empty-state"><h3>No matches found</h3><p>Try adjusting your filters or search query.</p></div>`
+              : `<div class="empty-state">No active items match the selected filters right now.</div>`
           }
         </div>
       </section>
@@ -611,20 +593,20 @@ function renderPublicCard(report, viewer) {
           <span class="status-badge ${statusClass(report.status)}">${report.status}</span>
         </div>
         <div class="meta-row">
-          <span class="meta-pill">📁 ${capitalize(report.type)}</span>
-          <span class="meta-pill">🏷️ ${escapeHtml(report.category)}</span>
-          <span class="meta-pill">📍 ${escapeHtml(report.generalLocation)}</span>
+          <span class="meta-pill">${capitalize(report.type)}</span>
+          <span class="meta-pill">${escapeHtml(report.category)}</span>
+          <span class="meta-pill">${escapeHtml(report.generalLocation)}</span>
         </div>
         <p class="report-description">${escapeHtml(report.description)}</p>
         <div class="meta-row">
           ${
             !viewer
-              ? `<span class="meta-pill">🔒 Login to claim</span>`
+              ? `<span class="meta-pill">Login required to claim</span>`
               : viewer.id === report.reporterAccountId
-                ? `<span class="meta-pill">✨ You posted this</span>`
+                ? `<span class="meta-pill">You posted this record</span>`
                 : existingClaim
-                  ? `<span class="meta-pill">📩 Claim: ${escapeHtml(existingClaim.status)}</span>`
-                  : `<button class="primary-button" data-action="claim-report" data-report-id="${report.id}" style="padding: 0.5rem 1.25rem; font-size: 0.8rem;">Claim Item</button>`
+                  ? `<span class="meta-pill">Claim submitted: ${escapeHtml(existingClaim.status)}</span>`
+                  : `<button class="ghost-button" data-action="claim-report" data-report-id="${report.id}">Claim this item</button>`
           }
         </div>
       </div>
@@ -640,24 +622,24 @@ function renderDashboard(account) {
   return `
     <section class="summary-grid">
       <article class="summary-card card">
-        <span>📊 Tracked Records</span>
+        <span>Tracked records</span>
         <strong>${reports.length}</strong>
-        <p class="detail-copy">Relationally linked reports.</p>
+        <p class="detail-copy">Relationally linked reports visible to this session.</p>
       </article>
       <article class="summary-card card">
-        <span>✨ Visual Matches</span>
+        <span>Visual matches</span>
         <strong>${matches.filter((match) => match.status === "Matched").length}</strong>
-        <p class="detail-copy">Pending admin review.</p>
+        <p class="detail-copy">Pending side-by-side admin review.</p>
       </article>
       <article class="summary-card card">
-        <span>✅ Verified Items</span>
+        <span>Verified items</span>
         <strong>${reports.filter((report) => report.status === "Verified").length}</strong>
-        <p class="detail-copy">Ready for handover.</p>
+        <p class="detail-copy">Ready for controlled handover.</p>
       </article>
       <article class="summary-card card">
-        <span>📈 Accuracy</span>
+        <span>Top confidence</span>
         <strong>${highestConfidence}%</strong>
-        <p class="detail-copy">Peak visual similarity score.</p>
+        <p class="detail-copy">Highest active visual fingerprint similarity.</p>
       </article>
     </section>
 
@@ -771,7 +753,7 @@ function renderReportCards(reports, account) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   if (!filtered.length) {
-    return `<div class="empty-state"><h3>No records</h3><p>No reports match the current filter.</p></div>`;
+    return `<div class="empty-state">No reports match the selected status filter.</div>`;
   }
 
   return filtered.map((report) => {
