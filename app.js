@@ -1547,7 +1547,7 @@ function tryCreateVisualMatch(newReport) {
     }))
     .sort((left, right) => right.confidence - left.confidence)[0];
 
-  if (best.confidence < 72) return null;
+  if (best.confidence < 50) return null;
 
   const lostReport = newReport.type === "lost" ? newReport : best.candidate;
   const foundReport = newReport.type === "found" ? newReport : best.candidate;
