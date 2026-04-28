@@ -1534,9 +1534,7 @@ function tryCreateVisualMatch(newReport) {
     return (
       report.id !== newReport.id &&
       report.type === oppositeType &&
-      report.status !== "Returned" &&
-      report.category === newReport.category &&
-      report.location === newReport.location
+      report.status !== "Returned"
     );
   });
 
@@ -1583,8 +1581,14 @@ function computeVisualConfidence(reportA, reportB) {
   const fpB = getFingerprint(reportB.fingerprintId);
   let score = 50;
 
-  if (reportA.category === reportB.category) score += 12;
-  if (reportA.location === reportB.location) score += 10;
+  const catA = String(reportA.category || "").toLowerCase();
+  const catB = String(reportB.category || "").toLowerCase();
+  if (catA && catB && (catA.includes(catB) || catB.includes(catA))) score += 12;
+
+  const locA = String(reportA.location || "").toLowerCase();
+  const locB = String(reportB.location || "").toLowerCase();
+  if (locA && locB && (locA.includes(locB) || locB.includes(locA))) score += 10;
+
   if (fpA.palette === fpB.palette) score += 9;
   if (fpA.texture === fpB.texture) score += 7;
   if (fpA.contour === fpB.contour) score += 7;
